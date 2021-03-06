@@ -1,0 +1,309 @@
+openapi: 3.0.0
+info:
+    title: 'Candy Delivery App'
+    version: '1.0'
+
+paths:
+    /couriers:
+        post:
+            description: 'Import couriers'
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CouriersPostRequest'
+            responses:
+                '201':
+                    description: 'Created'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CouriersIds'
+                '400':
+                    description: 'Bad request'
+                    content:
+                        application/json:
+                            schema:
+                                type: object
+                                additionalProperties: false
+                                properties:
+                                    validation_error:
+                                        $ref: '#/components/schemas/CouriersIds'
+                                required:
+                                  - validation_error
+
+    /couriers/{courier_id}:
+        parameters:
+          - in: path
+            name: courier_id
+            required: true
+            schema:
+                type: integer
+        get:
+            description: 'Get courier info'
+            responses:
+                '200':
+                    description: 'OK'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CourierGetResponse'
+                '404':
+                    description: 'Not found'
+
+        patch:
+            description: 'Update courier by id'
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CourierUpdateRequest'
+            responses:
+                '200':
+                    description: 'Created'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CourierItem'
+                '400':
+                    description: 'Bad request'
+                '404':
+                    description: 'Not found'
+
+    /orders:
+        post:
+            description: 'Import orders'
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/OrdersPostRequest'
+            responses:
+                '201':
+                    description: 'Created'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/OrdersIds'
+                '400':
+                    description: 'Bad request'
+                    content:
+                        application/json:
+                            schema:
+                                type: object
+                                additionalProperties: false
+                                properties:
+                                    validation_error:
+                                        $ref: '#/components/schemas/OrdersIds'
+                                required:
+                                  - validation_error
+
+    /orders/assign:
+        post:
+            description: 'Assign orders to a courier by id'
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/OrdersAssignPostRequest'
+            responses:
+                '200':
+                    description: 'OK'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/OrdersIds'
+                '400':
+                    description: 'Bad request'
+
+    /orders/complete:
+        post:
+            description: 'Marks orders as completed'
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/OrdersCompletePostRequest'
+            responses:
+                '200':
+                    description: 'OK'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/OrdersCompletePostResponse'
+                '400':
+                    description: 'Bad request'
+
+components:
+    schemas:
+        CouriersPostRequest:
+            type: object
+            additionalProperties: false
+            properties:
+                data:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/CourierItem'
+            required:
+              - data
+
+        CourierItem:
+            type: object
+            additionalProperties: false
+            properties:
+                courier_id:
+                    type: integer
+                courier_type:
+                    type: string
+                    enum:
+                      - foot
+                      - bike
+                      - car
+                regions:
+                    type: array
+                    items:
+                        type: integer
+                working_hours:
+                    type: array
+                    items:
+                        type: string
+            required:
+              - courier_id
+              - courier_type
+              - regions
+              - working_hours
+
+        CouriersIds:
+            type: object
+            additionalProperties: false
+            properties:
+                couriers:
+                    type: array
+                    items:
+                        type: object
+                        additionalProperties: false
+                        properties:
+                            id:
+                                type: integer
+                        required:
+                          - id
+            required:
+              - couriers
+
+        CourierGetResponse:
+            type: object
+            additionalProperties: false
+            properties:
+                courier_id:
+                    type: integer
+                courier_type:
+                    type: string
+                    enum:
+                      - foot
+                      - bike
+                      - car
+                regions:
+                    type: array
+                    items:
+                        type: integer
+                working_hours:
+                    type: array
+                    items:
+                        type: string
+                rating:
+                    type: number
+                earnings:
+                    type: integer
+            required:
+              - courier_id
+              - courier_type
+              - regions
+              - working_hours
+              - rating
+              - earnings
+
+        CourierUpdateRequest:
+            type: object
+            additionalProperties: false
+            properties:
+                courier_type:
+                    type: string
+                    enum:
+                      - foot
+                      - bike
+                      - car
+                regions:
+                    type: array
+                    items:
+                        type: integer
+                working_hours:
+                    type: array
+                    items:
+                        type: string
+
+        OrdersPostRequest:
+            type: object
+            additionalProperties: false
+            properties:
+                order_id:
+                    type: integer
+                weight:
+                    type: number
+                region:
+                    type: integer
+                delivery_hours:
+                    type: array
+                    items:
+                        type: string
+            required:
+              - order_id
+              - weight
+              - region
+              - delivery_hours
+
+        OrdersIds:
+            type: object
+            additionalProperties: false
+            properties:
+                orders:
+                    type: array
+                    items:
+                        type: object
+                        additionalProperties: false
+                        properties:
+                            id:
+                                type: integer
+                        required:
+                          - id
+            required:
+              - orders
+
+        OrdersAssignPostRequest:
+            type: object
+            additionalProperties: false
+            properties:
+                courier_id:
+                    type: integer
+            required:
+              - courier_id
+
+        OrdersCompletePostRequest:
+            type: object
+            additionalProperties: false
+            properties:
+                courier_id:
+                    type: integer
+                order_id:
+                    type: integer
+            required:
+              - courier_id
+              - order_id
+
+        OrdersCompletePostResponse:
+            type: object
+            additionalProperties: false
+            properties:
+                order_id:
+                    type: integer
+            required:
+              - order_id
