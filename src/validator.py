@@ -1,40 +1,45 @@
-import re
-from models import CourierType, Courier, Order
+from re import match as re_match
+from models import CourierType, Courier, Order, TimeInterval
+from exceptions import ValidationException
 
 
-def validate_hour(element):
+def validate_time(element):
     if type(element) != str:
-        return None
+        raise ValidationException("Переданный аргумент имеет неверный тип, ожидается строка")
     
     pattern = r'^([0-1]\d|2[0-3]):[0-5][0-9]-([0-1]\d|2[0-3]):[0-5][0-9]$'
-    if re.match(pattern, element) is None:
-        return None
+    if re_match(pattern, element) is None:
+        raise ValidationException("Cтрока должны быть формата HH:MM-HH:MM")
 
-    return element
+    start_h = int(element[0:2])
+    start_m = int(element[3:5])
+    end_h = int(element[6:8])
+    end_m = int(element[9:11])
+
+    return TimeInterval(start_h, start_m, end_h, end_m)
 
 
-def validate_hours(hours):
-    if type(hours) != list:
-        return None
-    for e in hours:
-        if validate_hour(e) is None:
-            return None
-    return(hours)
+def validate_time_list(time_intervals):
+    if type(time_intervals) != list:
+        raise ValidationException("Переданный аргумент имеет неверный тип, ожидается список строк")
+
+    h = list(map(lambda x: validate_time(x), time_intervals))
+    return h
 
 
 def validate_regions(regions):
     if type(regions) != list:
-        return None
-    for e in regions:
-        if validate_int(e) is None:
-            return None
-    return regions
+        raise ValidationException("Переданный аргумент имеет неверный тип, ожидается список целых чисел")
+
+    r = list(map(lambda x: validate_int(x), regions))
+    return r
 
 
 def validate_int(element):
     if type(element) == int:
         return element
-    return None
+    else:
+        raise ValidationException("Переданный аргумент имеет неверный тип, ожидается целое число")
 
 
 def validate_type(element):
@@ -45,57 +50,34 @@ def validate_type(element):
     elif element == 'car':
         return CourierType.car
     else:
-        return None
+        raise ValidationException("Переданный аргумент должен иметь одно из значений перечисления CourierType")
 
 
 def validate_weight(weight):
     if type(weight) != float and type(weight) != int:
-        return None
+        raise ValidationException("Переданный аргумент имеет неверный тип, ожидается число")
     if weight < 0.01 or weight > 50:
-        return None
+        raise ValidationException("Вес не может быть меньше 0.01 и больше 50")
     else:
         return float(weight)
 
 
 def validate_courier(courier_dict):
     id = validate_int(courier_dict.get('courier_id'))
-    if id is None:
-        return None
-
     t = validate_type(courier_dict.get('courier_type'))
-    if t is None:
-        return None
-
     regions = validate_regions(courier_dict.get('regions'))
-    if regions is None:
-        return None
-
-    hours = validate_hours(courier_dict.get('working_hours'))
-    if hours is None:
-        return None
+    hours = validate_time_list(courier_dict.get('working_hours'))
     
     return Courier(id, t, regions, hours)
 
 
 def validate_order(order_dict):
     id = validate_int(order_dict.get('order_id'))
-    if id is None:
-        return None
-
     w = validate_weight(order_dict.get('weight'))
-    if w is None:
-        return None
-
     reg = validate_int(order_dict.get('region'))
-    if reg is None:
-        return None
+    hours = validate_time_list(order_dict.get('delivery_hours'))
 
-    hours = validate_hours(order_dict.get('delivery_hours'))
-    if hours is None:
-        return None
-
-    o = Order(id, w, reg, hours)
-    return o
+    return Order(id, w, reg, hours)
 
 
 s = {

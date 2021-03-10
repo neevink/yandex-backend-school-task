@@ -1,10 +1,38 @@
 import enum
+from exceptions import IllegalArgumentError
 
 
 class CourierType(enum.Enum):
-    foot = 0
-    bike = 1
-    car = 2
+    foot = 10
+    bike = 15
+    car = 50
+
+
+class TimeInterval():
+    def __init__(self, start_hour, start_minute, end_hour, end_minute):
+        if end_hour < 0 or end_hour > 23 or start_hour < 0 or start_hour > 23:
+            raise IllegalArgumentError("Количество часов должно быть в интервале от [0; 23]")
+
+        if start_minute < 0 or start_minute > 59 or end_minute < 0 or end_minute > 59:
+            raise IllegalArgumentError("Количество часов должно быть в интервале от [0; 59]")
+
+        self.start_time = start_hour * 60 + start_minute
+        self.end_time = end_hour * 60 + end_minute
+
+    def __lt__(self, other):
+        if self.start_time == other.start_time:
+            return self.end_time < other.end_time
+        else:
+            return self.start_time < other.start_time
+    
+    def __eq__(self, other):
+        return self.start_time == other.start_time and self.end_time == other.end_time
+
+    def __repr__(self):
+        return self.__str__()
+        
+    def __str__(self):
+        return "{:0>2}:{:0>2}-{:0>2}:{:0>2}".format(self.start_time // 60, self.start_time % 60, self.end_time // 60, self.end_time % 60)
 
 
 class Courier():
@@ -24,7 +52,7 @@ class Courier():
             "courier_id": self.courier_id,
             "courier_type": tname,
             "regions": self.regions,
-            "working_hours": self.working_hours
+            "working_hours": [str(e) for e in self.working_hours]
         }
 
     def __str__(self):
@@ -48,4 +76,3 @@ class Order:
 
     def __str__(self):
         return "({0}, {1}, {2}, {3})".format(self.order_id, self.weight, self.region, self.delivery_hours)
-

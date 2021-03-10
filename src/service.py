@@ -4,6 +4,7 @@ from models import Courier, CourierType, Order
 import json
 import validator
 
+
 app = Flask(__name__)
 
 
@@ -14,24 +15,28 @@ def import_couriers():
         data = request.data
         d = json.loads(data)['data']
     except:
-        return "", 400
+        return bad_request_code()
 
-    success = []
-    not_success = []
-
-    # Тут ошибка, если в словаре нет courier_id
+    success_ids = []
+    not_success_ids = []
+    new_couriers = []
     for e in d:
-        if validator.validate_courier(e) is None:
-            not_success.append(e['courier_id'])
-        else:
-            success.append(e['courier_id'])
-    
-    if len(not_success) == 0:
-
-        dal.couriers = success
-        return json.dumps({"couriers": [{"id":x} for x in success]}), 201
+        # Если отсутствует id курьера, но это не ошибка валидации, а плохой запрос
+        if e.get('courier_id') is None:
+            return bad_request_code()
+        
+        try:
+            entity = validator.validate_courier(e)
+            new_couriers.append(entity)
+            success_ids.append(entity.courier_id)
+        except:
+            not_success_ids.append(e['courier_id'])
+            
+    if len(not_success_ids) == 0:
+        dal.add_couriers(new_couriers)
+        return created_code(json.dumps({"couriers": [{"id":x} for x in success_ids]}))
     else:
-        return json.dumps({"validation_error":{"couriers": [{"id":x} for x in not_success]}}), 400
+        return bad_request_code(json.dumps({"validation_error":{"couriers": [{"id":x} for x in not_success_ids]}}))
 
 
 # 2
@@ -51,7 +56,7 @@ def update_courier_by_id(courier_id):
     if d.get('regions') != None and regs == None:
         return "", 400
 
-    hours = validator.validate_hours(d.get('working_hours'))
+    hours = validator.validate_time_list(d.get('working_hours'))
     if d.get('working_hours') != None and hours == None:
         return "", 400
 
@@ -67,7 +72,7 @@ def import_orders():
         data = request.data
         d = json.loads(data)['data']
     except:
-        return "", 400
+        return bad_request_code()
 
     success = []
     not_success = []
@@ -138,13 +143,25 @@ def courier_info(courier_id):
 
 @app.route('/', strict_slashes = False, methods = ['GET'])
 def get_couriers():
-    c = Courier(1, CourierType.foot, [1, 12, 22], ["11:35-14:05", "09:00-11:00"])
-    return jsonify({'data': c.to_dict()})
+    m = list(map(lambda x: x.to_dict(), dal.couriers))
+    return jsonify({'data': m})
+
+
+def ok_code(data = ''):
+    return data, 200
+
+
+def created_code(data = ''):
+    return data, 201
+
+
+def bad_request_code(data = ''):
+    return data, 400
+
+
+def not_found_code(data = ''):
+    return data, 404
 
 
 if __name__ == '__main__':
     app.run(host="localhost", port=8080, debug=True)
-
-
-def BadRequst(data):
-    return
