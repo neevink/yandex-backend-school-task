@@ -2,8 +2,45 @@
 
 Это выполненное задание второго этапа отбора в школу бэкенд-разработки от Яндекса
 
+### Подготовка к запуску
+Для корректной работы приложения на машине должна быть установлена быза данных PostgreSQL. Если у вас Ubuntu, тогда для её установки, введите в консоль:
+> sudo apt-get install postgresql-12
+
+Для запуска бибилиотеки psycopg2 вам может понадобиться установить дополнительные пакеты `libpq-dev` и `gcc`
+> sudo apt-get install libpq-dev gcc
+
+После установки пакетов, нужно создать базу данных, которую будет использовать придожение. Чтобы подключиться к СУБД в роли админимтратора, введите:
+> sudo -u postgres psql
+
+Теперь создайте базу данных
+> CREATE DATABASE candy_shop
+
+Создайте нового пользователя и выдайте ему админ-права в базе данных candy_shop
+> CREATE USER candy_admin WITH PASSWORD '1';
+> GRANT ALL PRIVILEGES ON DATABASE "candy_shop"
+
+
 ### Запуск
 По умолчанию сервис запускается на `0.0.0.0:8080`
 КИРИЛЛ, НЕ ЗАБУДЬ ИЗМЕНИТЬ localhost на 0.0.0.0
 
-> pip install flask
+### Зависимости
+Для запуска проекта в требуется Python 3.0+
+
+Также перед запуском нужно установить специальные пакеты:
+
+Библитека с фреймворком Flask, для создания Web-приложений
+> pip3 install flask
+
+Библиотека для взаимодействия с базой данных:
+>pip3 install psycopg2
+
+
+
+
+
+Подключиться к консоли PostgreSQL
+> sudo -u postgres psql
+> CREATE USER candy_admin WITH PASSWORD '1';
+> GRANT ALL PRIVILEGES ON DATABASE "candy_shop"
+> \c candy_shop;

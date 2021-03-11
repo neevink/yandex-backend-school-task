@@ -112,7 +112,9 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/OrdersIds'
+                                allOf:
+                                  - $ref: '#/components/schemas/OrdersIds'
+                                  - $ref: '#/components/schemas/AssignTime'
                 '400':
                     description: 'Bad request'
 
@@ -278,6 +280,16 @@ components:
             required:
               - orders
 
+        AssignTime:
+            type: object
+            additionalProperties: false
+            properties:
+                assign_time:
+                    type: string
+                    example: '2021-01-10T09:32:14.42Z'
+            required:
+              - assign_time
+
         OrdersAssignPostRequest:
             type: object
             additionalProperties: false
@@ -295,9 +307,13 @@ components:
                     type: integer
                 order_id:
                     type: integer
+                complete_time:
+                    type: string
+                    example: '2021-01-10T10:33:01.42Z'
             required:
               - courier_id
               - order_id
+              - complete_time
 
         OrdersCompletePostResponse:
             type: object

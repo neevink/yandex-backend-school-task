@@ -23,7 +23,10 @@ def validate_time_list(time_intervals):
     if type(time_intervals) != list:
         raise ValidationException("Переданный аргумент имеет неверный тип, ожидается список строк")
 
-    h = list(map(lambda x: validate_time(x), time_intervals))
+    try:
+        h = list(map(lambda x: validate_time(x), time_intervals))
+    except Exception as e:
+        raise ValidationException('Недопустимый элемент массива: ' + str(e))
     return h
 
 
@@ -31,7 +34,10 @@ def validate_regions(regions):
     if type(regions) != list:
         raise ValidationException("Переданный аргумент имеет неверный тип, ожидается список целых чисел")
 
-    r = list(map(lambda x: validate_int(x), regions))
+    try:
+        r = list(map(lambda x: validate_int(x), regions))
+    except Exception as e:
+        raise ValidationException('Недопустимый элемент массива: ' + str(e))
     return r
 
 

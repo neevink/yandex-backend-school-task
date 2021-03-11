@@ -8,6 +8,7 @@ class CourierType(enum.Enum):
     car = 50
 
 
+
 class TimeInterval():
     def __init__(self, start_hour, start_minute, end_hour, end_minute):
         if end_hour < 0 or end_hour > 23 or start_hour < 0 or start_hour > 23:
@@ -55,6 +56,14 @@ class Courier():
             "working_hours": [str(e) for e in self.working_hours]
         }
 
+    def to_db_entity(self):
+        return (
+            self.courier_id,
+            self.courier_type.value,
+            self.regions,
+            [[e.start_time, e.end_time] for e in self.working_hours]
+        )
+
     def __str__(self):
         return "({0}, {1}, {2}, {3})".format(self.courier_id, self.courier_type, self.regions, self.working_hours)
 
@@ -71,8 +80,17 @@ class Order:
             "order_id": self.order_id,
             "weight": self.weight,
             "region": self.region,
-            "delivery_hours": self.delivery_hours
+            "delivery_hours": [str(e) for e in self.delivery_hours]
         }
+
+    
+    def to_db_entity(self):
+        return (
+            self.order_id,
+            self.weight,
+            self.region,
+            [[e.start_time, e.end_time] for e in self.delivery_hours]
+        )
 
     def __str__(self):
         return "({0}, {1}, {2}, {3})".format(self.order_id, self.weight, self.region, self.delivery_hours)
