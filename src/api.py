@@ -1,5 +1,6 @@
 from flask import Flask, jsonify, abort, request
 import dal
+import services
 from models import Courier, CourierType, Order
 import json
 from json import loads as parse_json, dumps as generate_json
@@ -34,7 +35,7 @@ def import_couriers():
             not_success_ids.append(e['courier_id'])
             
     if len(not_success_ids) == 0:
-        dal.add_couriers(new_couriers)
+        services.add_couriers(new_couriers)
         return created_code(generate_json({"couriers": [{"id":x} for x in success_ids]}))
     else:
         return bad_request_code(generate_json({"validation_error":{"couriers": [{"id":x} for x in not_success_ids]}}))
@@ -49,7 +50,7 @@ def update_courier_by_id(courier_id):
     except:
         return bad_request_with_message_code('Не удалось спарсить json в теле запроса')
 
-    courier = dal.get_courier_by_id(courier_id)
+    courier = services.get_courier_by_id(courier_id)
     # Если передан id курьера, который не существует, то вернуть 404
     if courier is None:
         return not_found_code()
@@ -73,8 +74,9 @@ def update_courier_by_id(courier_id):
             hours = validator.validate_time_list(d.get('working_hours'))
             courier.working_hours = hours
         except Exception as e:
-            return bad_request_with_message_code('Неверное поле working_hours: ' + str(e))
+            return bad_request_with_message_code('Неверное поле working_hours: ' + e)
 
+    dal.update_courier(courier)
     return ok_code(generate_json(courier.to_dict()))
 
 
@@ -100,14 +102,14 @@ def import_orders():
             entity = validator.validate_order(e)
             new_orders.append(entity)
             success_ids.append(entity.order_id)
-        except:
+        except Exception as exc:
             not_success_ids.append(e['order_id'])
     
     if len(not_success_ids) == 0:
-        dal.add_orders(new_orders)
+        services.add_orders(new_orders)
         return created_code(json.dumps({"orders": [{"id":x} for x in success_ids]}))
     else:
-        return created_code(json.dumps({"validation_error":{"orders": [{"id":x} for x in not_success_ids]}}))
+        return bad_request_code(json.dumps({"validation_error":{"orders": [{"id":x} for x in not_success_ids]}}))
 
 
 # 4
@@ -117,16 +119,18 @@ def assign_orders():
         data = request.data
         d = json.loads(data)
     except:
-        return "", 400
-
-    courier_id = validator.validate_int(d.get('courier_id'))
-    if courier_id is None:
-        return "", 400
+        return bad_request_with_message_code('Не удалось спарсить json в теле запроса')
+    
+    if d.get('courier_id') != None:
+        try:
+            id = validator.validate_int(d.get('courier_id'))
+        except Exception as e:
+            return bad_request_with_message_code('Неверное поле courier_id: ' + e)
 
     # Тут какой-нибудь алгос...
-    order_ids = [1, 2, 3]
+    order_ids = services.select_orders_for_courier(id)
 
-    return json.dumps({"orders": [{"id": x} for x in order_ids]}), 200
+    return ok_code(json.dumps({"orders": [{"id": x} for x in order_ids]}))
 
 
 # 5
@@ -188,4 +192,4 @@ def not_found_code(data = ''):
 
 
 if __name__ == '__main__':
-    app.run(host="localhost", port=8080, debug=True)
+    app.run(host="localhost", port=5000, debug=True)
