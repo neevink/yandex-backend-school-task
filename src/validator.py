@@ -1,6 +1,19 @@
 from re import match as re_match
 from models import CourierType, Courier, Order, TimeInterval
 from exceptions import ValidationException
+from datetime import datetime
+
+
+def validate_long_time(element):
+    if type(element) != str:
+        raise ValidationException('Переданный аргумент имеет неверный тип, ожидается строка')
+
+    t = None
+    try:
+        t = datetime.strptime('2021-01-10T09:32:14.42Z', '%Y-%m-%dT%H:%M:%S.%fZ')
+    except:
+        raise ValidationException('Cтрока имеет некорректный формат, пример формата: 2021-01-10T09:32:14.42Z')
+    return t
 
 
 def validate_time(element):
@@ -84,19 +97,3 @@ def validate_order(order_dict):
     hours = validate_time_list(order_dict.get('delivery_hours'))
 
     return Order(id, w, reg, hours)
-
-
-s = {
-    "courier_id": 1,
-    "courier_type": "foot",
-    "regions": [1, 12, 22],
-    "working_hours": ["11:35-14:05", "09:00-11:00"]
-}
-
-
-s2 = {
-"order_id": 3,
-"weight": 0.01,
-"region": 22,
-"delivery_hours": ["09:00-12:00", "16:00-21:30"]
-}

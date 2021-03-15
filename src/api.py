@@ -23,10 +23,9 @@ def import_couriers():
     not_success_ids = []
     new_couriers = []
     for e in d:
-        # Если отсутствует id курьера, но это не ошибка валидации, а плохой запрос
-        if e.get('courier_id') is None:
-            return bad_request_with_message_code('У одного из элементов отсутствует поле courier_id')
-        
+        if len(e) != 4 or e.get('courier_id') is None or e.get('courier_type') is None or e.get('regions') is None or e.get('working_hours') is None:
+            return bad_request_with_message_code('В одном из объектов присутствуют неописанные поля и/или отсутствуют обязательные')
+                
         try:
             entity = validator.validate_courier(e)
             new_couriers.append(entity)
@@ -35,7 +34,10 @@ def import_couriers():
             not_success_ids.append(e['courier_id'])
             
     if len(not_success_ids) == 0:
-        services.add_couriers(new_couriers)
+        try:
+            services.add_couriers(new_couriers)
+        except:
+            return bad_request_with_message_code('Один из курьеров с таким id уже существет в базе данных')
         return created_code(generate_json({"couriers": [{"id":x} for x in success_ids]}))
     else:
         return bad_request_code(generate_json({"validation_error":{"couriers": [{"id":x} for x in not_success_ids]}}))
@@ -50,10 +52,20 @@ def update_courier_by_id(courier_id):
     except:
         return bad_request_with_message_code('Не удалось спарсить json в теле запроса')
 
-    courier = services.get_courier_by_id(courier_id)
+    try:
+        courier = services.get_courier_by_id(courier_id)
+    except:
+        return bad_request_with_message_code('Курьера с там id не существует')
+
     # Если передан id курьера, который не существует, то вернуть 404
     if courier is None:
         return not_found_code()
+
+    # Поля которые могут присутствовать в этом запросе
+    accepted_fields = ['courier_type', 'regions', 'working_hours']
+    for key in list(d.keys()):
+        if key not in accepted_fields:
+            return bad_request_with_message_code('В запросе присутствуют неописанные поля')
 
     if d.get('courier_type') != None:
         try:
@@ -74,9 +86,12 @@ def update_courier_by_id(courier_id):
             hours = validator.validate_time_list(d.get('working_hours'))
             courier.working_hours = hours
         except Exception as e:
-            return bad_request_with_message_code('Неверное поле working_hours: ' + e)
-
-    dal.update_courier(courier)
+            return bad_request_with_message_code('Неверное поле working_hours: ' + str(e))
+    
+    try:
+        dal.update_courier(courier)
+    except:
+        return bad_request_with_message_code('Произошла какая-то шибка в базе данных')
     return ok_code(generate_json(courier.to_dict()))
 
 
@@ -94,9 +109,8 @@ def import_orders():
     new_orders = []
 
     for e in d:
-        # Если отсутствует id заказа, но это не ошибка валидации, а плохой запрос
-        if e.get('order_id') is None:
-            return bad_request_with_message_code('У одного из элементов отсутствует поле order_id')
+        if len(e) != 4 or e.get('order_id') is None or e.get('weight') is None or e.get('region') is None or e.get('delivery_hours') is None:
+            return bad_request_with_message_code('В одном из объектов присутствуют неописанные поля и/или отсутствуют обязательные')
 
         try:
             entity = validator.validate_order(e)
@@ -106,7 +120,10 @@ def import_orders():
             not_success_ids.append(e['order_id'])
     
     if len(not_success_ids) == 0:
-        services.add_orders(new_orders)
+        try:
+            services.add_orders(new_orders)
+        except:
+            return bad_request_with_message_code('Один из заказов с таким id уже существет в базе данных')
         return created_code(json.dumps({"orders": [{"id":x} for x in success_ids]}))
     else:
         return bad_request_code(json.dumps({"validation_error":{"orders": [{"id":x} for x in not_success_ids]}}))
@@ -121,16 +138,22 @@ def assign_orders():
     except:
         return bad_request_with_message_code('Не удалось спарсить json в теле запроса')
     
-    if d.get('courier_id') != None:
-        try:
-            id = validator.validate_int(d.get('courier_id'))
-        except Exception as e:
-            return bad_request_with_message_code('Неверное поле courier_id: ' + e)
+    try:
+        id = validator.validate_int(d.get('courier_id'))
+    except Exception as e:
+        return bad_request_with_message_code('Неверное поле courier_id: ' + str(e))
 
-    # Тут какой-нибудь алгос...
-    order_ids = services.select_orders_for_courier(id)
+    try:
+        result = services.assign_orders(id)
+        order_ids = result[0]
+        assign_time = result[1].isoformat()[:-4] + 'Z'
+    except:
+        return bad_request_with_message_code('Во время выполнения запроса произошла ошибка, скорее всего передан несуществующий id курьера')
 
-    return ok_code(json.dumps({"orders": [{"id": x} for x in order_ids]}))
+    if len(order_ids) == 0:
+        return ok_code(json.dumps({"orders": []}))
+    else:
+        return ok_code(json.dumps({"orders": [{"id": x} for x in order_ids], "assign_time": assign_time}))
 
 
 # 5
@@ -140,18 +163,27 @@ def complete_order():
         data = request.data
         d = json.loads(data)
     except:
-        return "", 400
+        return bad_request_with_message_code('Не удалось спарсить json в теле запроса')
 
-    order_id = validator.validate_int(d.get('order_id'))
-    if order_id is None:
-        return "", 400
+    try:
+        courier_id = validator.validate_int(d.get('courier_id'))
+    except Exception as e:
+        return bad_request_with_message_code('Неверное поле courier_id: ' + str(e))
+
+    try:
+        order_id = validator.validate_int(d.get('order_id'))
+    except Exception as e:
+        return bad_request_with_message_code('Неверное поле order_id: ' + str(e))
     
-    courier_id = validator.validate_int(d.get('courier_id'))
-    if courier_id is None:
-        return "", 400
-    
+    try:
+        complete_time = validator.validate_long_time(d.get('complete_time'))
+    except Exception as e:
+        return bad_request_with_message_code('Неверное поле complete_time: ' + str(e))
+
     # Тут метод который там ты понял
-    return json.dumps({"order_id": order_id}), 200
+
+    
+    return ok_code(json.dumps({"order_id": order_id}))
 
 # 6
 @app.route('/couriers/<int:courier_id>', strict_slashes = False, methods = ['GET'])
@@ -161,14 +193,7 @@ def courier_info(courier_id):
     c['rating'] = 3.4
     c['earnings'] = 10000
 
-    return json.dumps(c), 200
-
-
-@app.route('/', strict_slashes = False, methods = ['GET'])
-def get_couriers():
-    m = list(map(lambda x: x.to_dict(), dal.couriers))
-    o = list(map(lambda x: x.to_dict(), dal.orders))
-    return jsonify({'couriers': m, 'orders': o})
+    return ok_code(json.dumps(c))
 
 
 def ok_code(data = ''):

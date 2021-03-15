@@ -104,12 +104,26 @@ def update_courier(courier):
         f'update couriers set courier_id = %s, type = %s, regions = %s, working_time = %s where courier_id = %s;',
         [*courier.to_db_entity(), courier.courier_id]
     )
+    
+    # Также курьер теперь не сможет выполнить некоторые заказы, их нужно освободить
+
+
+def get_assign_time_for_courier(courier_id):
+    cursor = db_connection.cursor()
+    cursor.execute(
+        f'select assign_time from assigments where courier_id = %s order by assign_time limit 1;',
+        [courier_id]
+    )
+    result = cursor.fetchall()
+    if len(result) == 0:
+        return datetime.now()
+    else:
+        return result[0][0] # 1 строка и 1 столбец
 
 
 # Назначить заказ курьеру
-def assign_order(courier_id, order_id):
+def assign_order(courier_id, order_id, assign_time):
     cursor = db_connection.cursor()
-    assign_time = datetime.now()
     cursor.execute(
         f'insert into assigments (courier_id, order_id, completed, assign_time, complete_time) values (%s, %s, false, %s, null);',
         [courier_id, order_id, assign_time]
@@ -137,6 +151,14 @@ def prepare_list_of_intervals(list_of_tuples):
             break
     list_of_tuples.sort()
     return list_of_tuples
+
+
+# Согласно имеющейся у меня информации, заказ назначить можно, если выполняются условя:
+# 0) Заказ не назначен другому курьеру
+# 1) курьер работает в этом регионе
+# 2) вес заказа меньше или равен грузоподъёмности
+# 3) есть хотя бы одно ненуливое прересечение интервалов времени доставки заказа и интервалов времени работы курьера
+# 4) суммарный вес заказов, выдаваемых курьеру за раз должен быть меньше или равен грузоподъёмности
 
 
 # Может ли курьер выполнить заказ, временные промежутки должны быть отсортированы,
@@ -167,12 +189,12 @@ def select_orders_for_courier(courier_id):
 
     cursor = db_connection.cursor()
     cursor.execute(
-        f'select * from orders where weight <= %s and region = any((select regions from couriers where courier_id = %s)::integer[]) and (select count(1) from assigments where order_id = order_id) = 0 order by weight;',
+        f'select * from orders where weight <= %s and region = any((select regions from couriers where courier_id = %s)::integer[]) and (select count(1) from assigments where orders.order_id = assigments.order_id) = 0 order by weight;',
         [courier.courier_type.value, courier_id]
     )
     orders_list = cursor.fetchall()
 
-    courier_working_time = [(e.start_time, e.end_time) for e in courier.working_hours]
+    courier_working_time = prepare_list_of_intervals( [(e.start_time, e.end_time) for e in courier.working_hours] )
 
     orders_ids = []
     summary_weight = 0
