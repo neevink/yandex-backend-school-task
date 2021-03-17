@@ -4,6 +4,7 @@ from datetime import datetime
 from models import Courier, CourierType, Order, TimeInterval
 
 
+# Добавить курьеров
 def add_couriers(list_of_couriers):
     try:
         dal.add_couriers(list_of_couriers)
@@ -11,6 +12,7 @@ def add_couriers(list_of_couriers):
         raise Exception('Произошла ошибка: ' + str(e))
 
 
+# Добавить заказы
 def add_orders(list_of_orders):
     try:
         dal.add_orders(list_of_orders)
@@ -45,14 +47,38 @@ def update_courier(courier):
 
 
 def assign_orders(courier_id):
+    # Проверить, есть ли незаконченный развоз
+    if not dal.is_delivery_finished():
+        # Возвращаем список неразвезённых заказов
+        return select_not_finished_assigments(courier_id)
+
     orders_ids = dal.select_orders_for_courier(courier_id)
+    if len(orders_ids) == 0:
+        pass # Вернуть пустой список, время возвращать не нужно
+
     orders_ids.sort()
 
-    assign_time = dal.get_assign_time_for_courier(courier_id)
-    for id in orders_ids:
-        dal.assign_order(courier_id, id, assign_time)
+    # Округлим миллисикунды до 2х цифр для текущего времени
+    assign_time = datetime.now().replace(microsecond = assign_time.microsecond // 10000 * 10000)
+
+    dal.assign_orders(courier_id, orders_ids, assign_time)
 
     return (orders_ids, assign_time)
+
+
+# Отметить заказ, как выполненный
+def complete_order(courier_id, order_id, complete_time):
+    if not dal.is_order_assigned_for_courier(courier_id,order_id):
+        raise Exception('Заказ не найден или не назначен или уже отмечен, как выполненый')
+    
+    dal.complete_order(courier_id,order_id, complete_time)
+
+    # Если не все заказы выполнены, то не отмечаем выполненым развоз
+    if not dal.is_completed_all_assignments():
+        return order_id
+
+    
+    
 
 
 # Перебуру все заказы, и назначу заказ курьеру, если интервалы времени в которые он работает
@@ -88,9 +114,11 @@ ids = assign_orders(11)[0]
 print(ids)
 '''
 
+'''
 t = datetime(2021, 1, 10, 9, 32, 14, 420000).isoformat()[:-4]+'Z'
 print(t)
 
 s = '2021-01-10T09:32:14.42Z'
 t2 = datetime.strptime('2021-01-10T09:32:14.42Z', "%Y-%m-%dT%H:%M:%S.%fZ")
 print(t2)
+'''

@@ -3,6 +3,8 @@ import psycopg2
 from datetime import datetime
 
 
+drop_db_on_init = False
+
 # Создать подключение к базе данных
 def create_db_connection(db_name, db_user, db_password, db_host):
     connection = None
@@ -19,14 +21,15 @@ def create_db_connection(db_name, db_user, db_password, db_host):
     return connection
 
 
-# Создать таблицы в базе данных, если не существуют
+# Создать таблицы в базе данных, если они не существуют
 def init_database():
     cursor = db_connection.cursor()
-    # Выпили эту строчку, когда закончишь
-    try:
-        cursor.execute('drop table assigments; drop table couriers; drop table orders;')
-    except:
-        print('Дропнуть предыдущие версии бд не удалось :(')
+
+    if drop_db_on_init:
+        try:
+            cursor.execute('drop table assigments; drop table deliveries; drop table couriers; drop table orders;')
+        except:
+            print('Дропнуть предыдущие версии бд не удалось :(')
 
     # Потом заменить на create table if not exist couriers
     cursor.execute(
@@ -43,13 +46,19 @@ def init_database():
             region integer not null,
             delivery_time integer[][2] not null
         );
+        create table if not exists deliveries(
+            delivery_id serial primary key,
+            assign_time timestamp,
+            completed boolean not null default false
+        );
         create table if not exists assigments(
-            assigment_id serial primary key,
             courier_id integer references couriers (courier_id),
             order_id integer references orders (order_id),
-            completed boolean not null,
-            assign_time timestamp,
-            complete_time timestamp
+            delivery_id integer references deliveries (delivery_id),
+            complete_time timestamp,
+            wasted_seconds integer,
+            completed boolean not null default false,
+            primary key (courier_id, order_id)
         );
     '''
     )
@@ -87,7 +96,7 @@ def select_courier_by_id(courier_id):
     return Courier(result[0], CourierType(result[1]), result[2], time_intervals)
 
 
-# Получить курьера по id
+# Получить заказ по id
 def select_order_by_id(order_id):
     cursor = db_connection.cursor()
     cursor.execute(
@@ -98,6 +107,7 @@ def select_order_by_id(order_id):
     return Order(result[0], result[1], result[2], time_intervals)
 
 
+# Обновить информацию о курьере
 def update_courier(courier):
     cursor = db_connection.cursor()
     cursor.execute(
@@ -108,39 +118,110 @@ def update_courier(courier):
     # Также курьер теперь не сможет выполнить некоторые заказы, их нужно освободить
 
 
-def get_assign_time_for_courier(courier_id):
+# Проверить, закончил ли курьер развоз
+def is_delivery_finished(courier_id):
     cursor = db_connection.cursor()
     cursor.execute(
-        f'select assign_time from assigments where courier_id = %s order by assign_time limit 1;',
+        f'select count(*) from assigments join deliveries on deliveries.delivery_id = assigments.delivery_id where assigments.courier_id = %s and deliveries.completed = false;',
+        [courier_id]
+    )
+    result = cursor.fetchall()[0][0]
+    if result == 0:
+        return True
+    else:
+        return False
+
+
+# Вевнуть список идентификаторов незаконченных товаров
+def select_not_finished_assigments(courier_id):
+    cursor = db_connection.cursor()
+    cursor.execute(
+        f'select order_id from assigments where assigments.courier_id = %s and assigments.completed = false;',
         [courier_id]
     )
     result = cursor.fetchall()
-    if len(result) == 0:
-        return datetime.now()
-    else:
-        return result[0][0] # 1 строка и 1 столбец
+    return result
 
 
-# Назначить заказ курьеру
-def assign_order(courier_id, order_id, assign_time):
+# Назначить заказы курьеру
+def assign_orders(courier_id, order_ids, assign_time):
+    cursor = db_connection.cursor()
+    # Создам новый развоз
+    cursor.execute(
+        f'insert into deliveries (assign_time, completed) values (%s, false) returning deliveries.delivery_id;',
+        [assign_time]
+    )
+    delivery_id = cursor.fetchall()[0][0]
+    print(delivery_id)
+
+    # Добавим заказы
+    values = [(courier_id, id, delivery_id) for id in order_ids]
+    cursor.execute(
+        f'insert into assigments (courier_id, order_id, delivery_id) values { ", ".join(["%s"] * len(values)) };',
+        values
+    )
+
+
+# Проверить назначен ли заказ курьеру, и не выполнен ли он (можно ли его выполнить)
+def is_order_assigned_for_courier(courier_id, order_id):
     cursor = db_connection.cursor()
     cursor.execute(
-        f'insert into assigments (courier_id, order_id, completed, assign_time, complete_time) values (%s, %s, false, %s, null);',
-        [courier_id, order_id, assign_time]
+        f'select count(*) from assigments where courier_id = %s and order_id = %s and completed = false;',
+        [courier_id, order_id]
     )
-    return assign_time
+    result = cursor.fetchall()[0][0]
+    if result == 0:
+        return False
+    else:
+        return True
 
 
-# Отметить заказ выполненным
+# Отметить заказ выполненным и по-возможности отметить выполненным развоз
 def complete_order(courier_id, order_id, complete_time):
     cursor = db_connection.cursor()
     cursor.execute(
-        f'update assigments set completed = true, complete_time = %s where courier_id = %s and order_id = %s and completed = false;',
-        [complete_time, courier_id, order_id]
+        f'''update assigments set completed = true, complete_time = %s, wasted_seconds = extract(epoch from %s) -  extract(epoch from coalesce( 
+            (select max(complete_time) from assigments where order_id = %s),
+            (select assign_time from deliveries
+                join assigments on assigments.delivery_id = deliveries.delivery_id
+                where assigments.order_id = %s and assigments.courier_id = %s limit 1
+            )
+        ))
+        where courier_id = %s and order_id = %s and completed = false;''',
+        [complete_time, complete_time, order_id, order_id, courier_id, courier_id, order_id]
     )
 
 
-# Перебирает список интервалов и разбивает интервалы, если они проходят через 00:00 на интервалы [x; 23:59] U [00:00; y]
+# Выполнил ли все заказы курьер
+def is_completed_all_assignments(courier_id):
+    cursor = db_connection.cursor()
+    cursor.execute(
+        f'select count(*) from assigments where courier_id = %s and completed = false;',
+        [courier_id]
+    )
+    result = cursor.fetchall()[0][0]
+
+    if result == 0:
+        return True
+    else:
+        return False
+
+
+# Отметить развоз, как выполненный
+def complete_delivery(courier_id, order_id):
+    cursor = db_connection.cursor()
+    cursor.execute(
+        f'''update deliveries set completed = true
+            where deliveries.delivery_id = (
+                select deliveries.delivery_id from assigments
+                    join deliveries on assigments.delivery_id = deliveries.delivery_id 
+                        where courier_id = %s and order_id = %s);
+        ''',
+        [courier_id, order_id]
+    )
+
+
+# Перебирает список интервалов и разбивает интервалы, если они проходят через 00:00 на интервалы [x; 23:59] и [00:00; y]
 def prepare_list_of_intervals(list_of_tuples):
     for e in list_of_tuples:
         if e[1] < e[0]:
@@ -162,7 +243,7 @@ def prepare_list_of_intervals(list_of_tuples):
 
 
 # Может ли курьер выполнить заказ, временные промежутки должны быть отсортированы,
-# интервалы, проходящие через 00:00, разбиты на [x; 23:59] U [00:00; y]
+# а интервалы, проходящие через 00:00, разбиты на [x; 23:59] U [00:00; y]
 def try_assign_order(courier_times, delivery_times):
 
     i = 0 # индекс временных интервалов курьера
@@ -217,3 +298,11 @@ def select_orders_for_courier(courier_id):
 db_connection = create_db_connection('candy_shop', 'candy_admin', '1', 'localhost')
 db_connection.autocommit = True
 init_database()
+
+'''
+print(is_delivery_finished(1))
+print(is_order_assigned_for_courier(1, 5))
+print(is_completed_all_assignments(1))
+
+complete_delivery(1, 6)
+'''
