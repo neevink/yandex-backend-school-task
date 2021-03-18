@@ -50,7 +50,7 @@ def assign_orders(courier_id):
     # Проверить, есть ли незаконченный развоз
     if not dal.is_delivery_finished():
         # Возвращаем список неразвезённых заказов
-        return select_not_finished_assigments(courier_id)
+        return dal.select_not_finished_assignments(courier_id)
 
     orders_ids = dal.select_orders_for_courier(courier_id)
     if len(orders_ids) == 0:

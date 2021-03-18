@@ -27,7 +27,7 @@ def init_database():
 
     if drop_db_on_init:
         try:
-            cursor.execute('drop table assigments; drop table deliveries; drop table couriers; drop table orders;')
+            cursor.execute('drop table assignments; drop table deliveries; drop table couriers; drop table orders;')
         except:
             print('Дропнуть предыдущие версии бд не удалось :(')
 
@@ -51,7 +51,7 @@ def init_database():
             assign_time timestamp,
             completed boolean not null default false
         );
-        create table if not exists assigments(
+        create table if not exists assignments(
             courier_id integer references couriers (courier_id),
             order_id integer references orders (order_id),
             delivery_id integer references deliveries (delivery_id),
@@ -122,7 +122,7 @@ def update_courier(courier):
 def is_delivery_finished(courier_id):
     cursor = db_connection.cursor()
     cursor.execute(
-        f'select count(*) from assigments join deliveries on deliveries.delivery_id = assigments.delivery_id where assigments.courier_id = %s and deliveries.completed = false;',
+        f'select count(*) from assignments join deliveries on deliveries.delivery_id = assignments.delivery_id where assignments.courier_id = %s and deliveries.completed = false;',
         [courier_id]
     )
     result = cursor.fetchall()[0][0]
@@ -133,10 +133,10 @@ def is_delivery_finished(courier_id):
 
 
 # Вевнуть список идентификаторов незаконченных товаров
-def select_not_finished_assigments(courier_id):
+def select_not_finished_assignments(courier_id):
     cursor = db_connection.cursor()
     cursor.execute(
-        f'select order_id from assigments where assigments.courier_id = %s and assigments.completed = false;',
+        f'select order_id from assignments where assignments.courier_id = %s and assignments.completed = false;',
         [courier_id]
     )
     result = cursor.fetchall()
@@ -157,7 +157,7 @@ def assign_orders(courier_id, order_ids, assign_time):
     # Добавим заказы
     values = [(courier_id, id, delivery_id) for id in order_ids]
     cursor.execute(
-        f'insert into assigments (courier_id, order_id, delivery_id) values { ", ".join(["%s"] * len(values)) };',
+        f'insert into assignments (courier_id, order_id, delivery_id) values { ", ".join(["%s"] * len(values)) };',
         values
     )
 
@@ -166,7 +166,7 @@ def assign_orders(courier_id, order_ids, assign_time):
 def is_order_assigned_for_courier(courier_id, order_id):
     cursor = db_connection.cursor()
     cursor.execute(
-        f'select count(*) from assigments where courier_id = %s and order_id = %s and completed = false;',
+        f'select count(*) from assignments where courier_id = %s and order_id = %s and completed = false;',
         [courier_id, order_id]
     )
     result = cursor.fetchall()[0][0]
@@ -180,11 +180,11 @@ def is_order_assigned_for_courier(courier_id, order_id):
 def complete_order(courier_id, order_id, complete_time):
     cursor = db_connection.cursor()
     cursor.execute(
-        f'''update assigments set completed = true, complete_time = %s, wasted_seconds = extract(epoch from %s) -  extract(epoch from coalesce( 
-            (select max(complete_time) from assigments where order_id = %s),
+        f'''update assignments set completed = true, complete_time = %s, wasted_seconds = extract(epoch from %s) -  extract(epoch from coalesce( 
+            (select max(complete_time) from assignments where order_id = %s),
             (select assign_time from deliveries
-                join assigments on assigments.delivery_id = deliveries.delivery_id
-                where assigments.order_id = %s and assigments.courier_id = %s limit 1
+                join assignments on assignments.delivery_id = deliveries.delivery_id
+                where assignments.order_id = %s and assignments.courier_id = %s limit 1
             )
         ))
         where courier_id = %s and order_id = %s and completed = false;''',
@@ -196,7 +196,7 @@ def complete_order(courier_id, order_id, complete_time):
 def is_completed_all_assignments(courier_id):
     cursor = db_connection.cursor()
     cursor.execute(
-        f'select count(*) from assigments where courier_id = %s and completed = false;',
+        f'select count(*) from assignments where courier_id = %s and completed = false;',
         [courier_id]
     )
     result = cursor.fetchall()[0][0]
@@ -213,8 +213,8 @@ def complete_delivery(courier_id, order_id):
     cursor.execute(
         f'''update deliveries set completed = true
             where deliveries.delivery_id = (
-                select deliveries.delivery_id from assigments
-                    join deliveries on assigments.delivery_id = deliveries.delivery_id 
+                select deliveries.delivery_id from assignments
+                    join deliveries on assignments.delivery_id = deliveries.delivery_id 
                         where courier_id = %s and order_id = %s);
         ''',
         [courier_id, order_id]
@@ -270,7 +270,12 @@ def select_orders_for_courier(courier_id):
 
     cursor = db_connection.cursor()
     cursor.execute(
-        f'select * from orders where weight <= %s and region = any((select regions from couriers where courier_id = %s)::integer[]) and (select count(1) from assigments where orders.order_id = assigments.order_id) = 0 order by weight;',
+        f'''select * from orders
+            where weight <= %s
+                and region = any((select regions from couriers where courier_id = %s)::integer[])
+                and (select count(1) from assignments where orders.order_id = assignments.order_id) = 0
+            order by weight;
+        ''',
         [courier.courier_type.value, courier_id]
     )
     orders_list = cursor.fetchall()
