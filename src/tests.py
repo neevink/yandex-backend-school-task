@@ -3,6 +3,8 @@ import services
 import dal
 from models import Courier, CourierType, TimeInterval, Order
 
+from datetime import datetime, timedelta
+
 class TestServices(unittest.TestCase):
     def setUp(self):
         # Перед каждым запуском теста, чистим бд
@@ -152,6 +154,62 @@ class TestServices(unittest.TestCase):
         services.add_couriers([c2])
         ids = services.assign_orders(c2.courier_id)
         self.assertEqual(ids[0], [1, 2, 3])
+
+
+    # Модульный тест на выполнение заказа 
+    def test_completing_orders(self):
+        c1 = Courier(1, CourierType.foot, [1, 2], [TimeInterval(9, 0, 12, 0), TimeInterval(14, 0, 17, 0)])
+        services.add_couriers([c1])
+
+        o1 = Order(4, 4.5, 1, [TimeInterval(6, 0, 7, 0), TimeInterval(10, 0, 13, 0)])
+        o2 = Order(5, 3.5, 2, [TimeInterval(0, 0, 3, 0), TimeInterval(15, 0, 15, 30)])
+        services.add_orders([o1, o2])
+
+        services.assign_orders(c1.courier_id) # Назначены заказы #1 и #2
+
+        time = datetime.now().replace(microsecond=0) + timedelta(0,60*3)
+        services.complete_order(c1.courier_id, o1.order_id, time)
+
+        ids = services.assign_orders(c1.courier_id)
+        self.assertEqual(ids, [5])
+
+        time = datetime.now().replace(microsecond=0) + timedelta(0,60*10)
+        services.complete_order(c1.courier_id, o2.order_id, time)
+
+        ids = services.assign_orders(c1.courier_id)
+        self.assertEqual(ids, [])
+
+
+    # Модульный тест на выполнение заказа 
+    def test_calculating_sallary(self):
+        c1 = Courier(1, CourierType.foot, [1, 2], [TimeInterval(9, 0, 12, 0), TimeInterval(14, 0, 17, 0)])
+        c2 = Courier(2, CourierType.bike, [2, 3], [TimeInterval(10, 0, 16, 0)])
+        services.add_couriers([c1, c2])
+
+        o1 = Order(1, 4.67, 2, [TimeInterval(10, 0, 15, 0), TimeInterval(22, 10, 22, 40)])
+        o2 = Order(2, 11.5, 3, [TimeInterval(3, 0, 6, 0), TimeInterval(14, 0, 17, 0)])
+        o3 = Order(3, 5.44, 2, [TimeInterval(10, 0, 12, 0), TimeInterval(21, 0, 3, 40), TimeInterval(6, 0, 8, 0)])
+        o4 = Order(4, 3.33, 3, [TimeInterval(6, 0, 7, 0), TimeInterval(10, 0, 11, 0), TimeInterval(12, 0, 13, 0)])
+        o5 = Order(5, 1.5, 1, [TimeInterval(6, 10, 7, 40), TimeInterval(23, 0, 2, 0)])
+        services.add_orders([o1, o2, o3, o4, o5])
+
+        assign1_result = services.assign_orders(c1.courier_id) # 1
+        assign2_result = services.assign_orders(c2.courier_id) # 3, 4
+
+        # Нет развозов = нет зарплаты
+        self.assertEqual(services.calcuate_courier_sallary(c1.courier_id), 0)
+
+        time = datetime.now().replace(microsecond = 0) + timedelta(0, 60 * 15) # 15 минут
+        services.complete_order(c1.courier_id, 1, time)
+        c1.courier_type = CourierType.car
+        services.update_courier(c1)
+        assign3_result = services.assign_orders(c1.courier_id) # 5, 6
+
+        # 1 пеший развоз = 2 * 500
+        self.assertEqual(services.calcuate_courier_sallary(c1.courier_id), 2 * 500)
+
+        time = datetime.now().replace(microsecond = 0) + timedelta(0, 60 * 23) # 23 минуты
+        services.complete_order(c2.courier_id, 3, time)
 
 
 class TestDAL(unittest.TestCase):

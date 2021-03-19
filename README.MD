@@ -42,20 +42,24 @@ CREATE USER candy_admin WITH PASSWORD '1';
 GRANT ALL PRIVILEGES ON DATABASE candy_shop TO candy_admin;
 ```
 
+
 ## Запуск
 По умолчанию сервис запускается на `0.0.0.0:8080`
 КИРИЛЛ, НЕ ЗАБУДЬ ИЗМЕНИТЬ localhost на `0.0.0.0`
 
+
 ## Тесты
-В приложении есть unit-тесты, если у вас не установлена среда разработки, то для их запуска нужно перейти в корень проекта и запустить скрипт:
+Почти весь код покрыт unit-тестами, если у вас не установлена среда разработки, то для их запуска нужно перейти в корень проекта и запустить скрипт:
 ```sh
 ./run_tests.bash
 ```
-Но будьте осторожны, тесты используют боевую базу данных, а не фейковую!
+Модульные тесты используют боевую базу данных, а не фейковую, и частят её до запуска и после выполнения всех тестов.
 
 
 Подключиться к консоли PostgreSQL
-> sudo -u postgres psql
-> CREATE USER candy_admin WITH PASSWORD '1';
-> GRANT ALL PRIVILEGES ON DATABASE "candy_shop"
-> \c candy_shop;
+```sh
+sudo -u postgres psql
+CREATE USER candy_admin WITH PASSWORD '1';
+GRANT ALL PRIVILEGES ON DATABASE "candy_shop"
+\c candy_shop;
+```

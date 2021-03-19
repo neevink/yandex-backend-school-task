@@ -53,7 +53,7 @@ def init_database(drop_db_tables_on_init):
         create table if not exists assignments(
             courier_id integer references couriers (courier_id),
             order_id integer references orders (order_id),
-            delivery_id integer references deliveries (delivery_id),
+            delivery_id integer references deliveries (delivery_id) on delete cascade,
             complete_time timestamp,
             wasted_seconds integer,
             completed boolean not null default false,
@@ -147,16 +147,65 @@ def update_courier(courier):
             else:
                 break
 
+    delivery_id = get_not_finished_delivery(courier.courier_id)
+
     if len(orders_ids) == 0:
-        complete_delivery(courier.courier_id, orders_list[0][0])
+        if is_completed_any_assignment(delivery_id):
+            complete_delivery(delivery_id)
+        else:
+            delete_delivery(delivery_id)
 
     cursor.execute(
-        f'delete from assignments where courier_id = %s and not order_id = any(%s);',
+        f'delete from assignments where courier_id = %s and not order_id = any(%s) and completed = false;',
         [courier.courier_id, orders_ids]
     )
     cursor.close()
 
-    
+
+# Найти незаконченный развоз курьера
+def get_not_finished_delivery(courier_id):
+    cursor = db_connection.cursor()
+    cursor.execute(
+        f'''
+        select deliveries.delivery_id from deliveries
+        join assignments on deliveries.delivery_id = assignments.delivery_id
+        where deliveries.completed = false and assignments.courier_id = %s;
+        ''',
+        [courier_id]
+    )
+    delivery_id = cursor.fetchall()[0][0]
+    return delivery_id
+
+
+# Проверить завершён ли хоть один заказ из развоза. Развоз находится по id курьера и id заказа
+def is_completed_any_assignment(delivery_id):
+    cursor = db_connection.cursor()
+    cursor.execute(
+        f'''
+        select count(*) from assignments
+            where delivery_id = %s
+            and completed = true;
+        ''',
+        [delivery_id]
+    )
+    result = cursor.fetchall()[0][0]
+    cursor.close()
+
+    if result != 0:
+        return True
+    else:
+        return False
+
+
+# Удалить развоз по id курьера и id заказа
+def delete_delivery(delivery_id):
+    cursor = db_connection.cursor()
+    cursor.execute(
+        f'delete from deliveries where delivery_id = %s;',
+        [delivery_id]
+    )
+    cursor.close()
+
 
 # Проверить, закончил ли курьер развоз
 def is_delivery_finished(courier_id):
@@ -256,16 +305,18 @@ def is_order_completed(courier_id, order_id):
 def complete_order(courier_id, order_id, complete_time):
     cursor = db_connection.cursor()
     cursor.execute(
-        f'''update assignments set completed = true, complete_time = %s, wasted_seconds = extract(epoch from %s) -  extract(epoch from coalesce( 
+        f'''
+        update assignments set completed = true, complete_time = %s, wasted_seconds = extract(epoch from %s) -  extract(epoch from coalesce( 
             (select max(complete_time) from assignments
-                join deliveries on assignments.delivery_id = (select delivery_id from assignments where courier_id = 1 and order_id = 5)),
+                join deliveries on assignments.delivery_id = (select delivery_id from assignments where courier_id = %s and order_id = %s)),
             (select assign_time from deliveries
                 join assignments on assignments.delivery_id = deliveries.delivery_id
                 where assignments.order_id = %s and assignments.courier_id = %s limit 1
             )
-        ))
-        where courier_id = %s and order_id = %s and completed = false;''',
-        [complete_time, complete_time, courier_id, order_id, courier_id, courier_id, order_id]
+            ))
+        where courier_id = %s and order_id = %s and completed = false;
+        ''',
+        [complete_time, complete_time, courier_id, order_id, order_id, courier_id, courier_id, order_id]
     )
     cursor.close()
 
@@ -287,16 +338,13 @@ def is_completed_all_assignments(courier_id):
 
 
 # Отметить развоз, как выполненный
-def complete_delivery(courier_id, order_id):
+def complete_delivery(delivery_id):
     cursor = db_connection.cursor()
     cursor.execute(
         f'''update deliveries set completed = true
-            where deliveries.delivery_id = (
-                select deliveries.delivery_id from assignments
-                    join deliveries on assignments.delivery_id = deliveries.delivery_id 
-                        where courier_id = %s and order_id = %s);
+            where deliveries.delivery_id = %s
         ''',
-        [courier_id, order_id]
+        [delivery_id]
     )
     cursor.close()
 

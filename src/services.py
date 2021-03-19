@@ -81,7 +81,8 @@ def complete_order(courier_id, order_id, complete_time):
 
     # Если все заказы выполнены, то отмечаем выполненым развоз
     if dal.is_completed_all_assignments(courier_id):
-        dal.complete_delivery(courier_id,order_id)
+        delivery_id = dal.get_not_finished_delivery(courier_id)
+        dal.complete_delivery(delivery_id)
 
     return order_id
 
