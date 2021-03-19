@@ -48,18 +48,20 @@ def update_courier(courier):
 
 def assign_orders(courier_id):
     # Проверить, есть ли незаконченный развоз
-    if not dal.is_delivery_finished():
+    if not dal.is_delivery_finished(courier_id):
         # Возвращаем список неразвезённых заказов
-        return dal.select_not_finished_assignments(courier_id)
+        not_finished_ids = dal.select_not_finished_assignments(courier_id)
+        return [e[0] for e in not_finished_ids]
 
     orders_ids = dal.select_orders_for_courier(courier_id)
     if len(orders_ids) == 0:
-        pass # Вернуть пустой список, время возвращать не нужно
+        return ([]) # Вернуть пустой список, время возвращать не нужно
 
     orders_ids.sort()
 
     # Округлим миллисикунды до 2х цифр для текущего времени
-    assign_time = datetime.now().replace(microsecond = assign_time.microsecond // 10000 * 10000)
+    assign_time = datetime.now()
+    assign_time = assign_time.replace(microsecond = assign_time.microsecond // 10000 * 10000)
 
     dal.assign_orders(courier_id, orders_ids, assign_time)
 
@@ -69,16 +71,29 @@ def assign_orders(courier_id):
 # Отметить заказ, как выполненный
 def complete_order(courier_id, order_id, complete_time):
     if not dal.is_order_assigned_for_courier(courier_id,order_id):
-        raise Exception('Заказ не найден или не назначен или уже отмечен, как выполненый')
+        raise Exception('Заказ не найден или не назначен этому курьеру')
+
+    # Если заказ уже выполнен, то перезаписывать время выполнения не нужно
+    if not dal.is_order_completed(courier_id, order_id):
+        return order_id
     
     dal.complete_order(courier_id,order_id, complete_time)
 
-    # Если не все заказы выполнены, то не отмечаем выполненым развоз
-    if not dal.is_completed_all_assignments():
-        return order_id
+    # Если все заказы выполнены, то отмечаем выполненым развоз
+    if dal.is_completed_all_assignments(courier_id):
+        dal.complete_delivery(courier_id,order_id)
 
-    
-    
+    return order_id
+
+
+# Посчитать заработную плату курьера
+def calcuate_courier_sallary(courier_id):
+    return dal.calcuate_courier_sallary(courier_id)
+
+
+# Посчитать рейтинг курьера
+def calculate_courier_rating(courier_id):
+    return dal.get_courier_rating(courier_id)
 
 
 # Перебуру все заказы, и назначу заказ курьеру, если интервалы времени в которые он работает
@@ -121,4 +136,33 @@ print(t)
 s = '2021-01-10T09:32:14.42Z'
 t2 = datetime.strptime('2021-01-10T09:32:14.42Z', "%Y-%m-%dT%H:%M:%S.%fZ")
 print(t2)
+'''
+
+'''
+print(assign_orders(2))
+tiem = datetime.now()
+tiem = tiem.replace(microsecond = tiem.microsecond // 10000 * 10000)
+print(complete_order(2, 21, tiem))
+
+print(assign_orders(2))
+
+
+print(calcuate_courier_sallary(2))
+print(calculate_courier_rating(2))
+'''
+
+
+
+'''
+print(assign_orders(2))
+tiem = datetime.now()
+tiem = tiem.replace(microsecond = tiem.microsecond // 10000 * 10000)
+print(complete_order(2, 10, tiem))
+
+print(assign_orders(2))
+
+
+print(calcuate_courier_sallary(2))
+print(calculate_courier_rating(2))
+
 '''

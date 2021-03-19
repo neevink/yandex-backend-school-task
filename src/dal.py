@@ -3,8 +3,6 @@ import psycopg2
 from datetime import datetime
 
 
-drop_db_on_init = False
-
 # Создать подключение к базе данных
 def create_db_connection(db_name, db_user, db_password, db_host):
     connection = None
@@ -22,10 +20,10 @@ def create_db_connection(db_name, db_user, db_password, db_host):
 
 
 # Создать таблицы в базе данных, если они не существуют
-def init_database():
+def init_database(drop_db_tables_on_init):
     cursor = db_connection.cursor()
 
-    if drop_db_on_init:
+    if drop_db_tables_on_init:
         try:
             cursor.execute('drop table assignments; drop table deliveries; drop table couriers; drop table orders;')
         except:
@@ -49,7 +47,8 @@ def init_database():
         create table if not exists deliveries(
             delivery_id serial primary key,
             assign_time timestamp,
-            completed boolean not null default false
+            completed boolean not null default false,
+            salary_coefficient integer not null
         );
         create table if not exists assignments(
             courier_id integer references couriers (courier_id),
@@ -73,6 +72,7 @@ def add_orders(orders):
         f'insert into orders (order_id, weight, region, delivery_time) values { ", ".join(["%s"] * len(values)) };',
         values
     )
+    cursor.close()
 
 
 # Добавить в таблицу couriers список новых курьеров
@@ -83,6 +83,7 @@ def add_couriers(couriers):
         f'insert into couriers (courier_id, type, regions, working_time) values { ", ".join(["%s"] * len(values)) };',
         values
     )
+    cursor.close()
 
 
 # Получить курьера по id
@@ -92,6 +93,7 @@ def select_courier_by_id(courier_id):
         f"select * from couriers where courier_id = %s;", [courier_id]
     )
     result = cursor.fetchall()[0]
+    cursor.close()
     time_intervals = [TimeInterval(e[0] // 60, e[0] % 60, e[1] // 60, e[1] % 60) for e in result[3]]
     return Courier(result[0], CourierType(result[1]), result[2], time_intervals)
 
@@ -103,6 +105,7 @@ def select_order_by_id(order_id):
         f"select * from orders where order_id = %s;", [order_id]
     )
     result = cursor.fetchall()[0]
+    cursor.close()
     time_intervals = [TimeInterval(e[0] // 60, e[0] % 60, e[1] // 60, e[1] % 60) for e in result[3]]
     return Order(result[0], result[1], result[2], time_intervals)
 
@@ -116,7 +119,44 @@ def update_courier(courier):
     )
     
     # Также курьер теперь не сможет выполнить некоторые заказы, их нужно освободить
+    cursor.execute(
+        f'''select * from orders
+            where order_id = any(select order_id from assignments where courier_id = %s and completed = false)
+                and weight <= %s
+                and region = any((select regions from couriers where courier_id = %s)::integer[])
+            order by weight;
+        ''',
+        [courier.courier_id, courier.courier_type.value, courier.courier_id]
+    )
+    orders_list = cursor.fetchall()
 
+    courier_working_time = prepare_list_of_intervals( [(e.start_time, e.end_time) for e in courier.working_hours] )
+
+    orders_ids = []
+    summary_weight = 0
+    for e in orders_list:
+        # Если курьер уже не может унести на своём хребте заказы, то стоит прекратить ему их назначать
+        if summary_weight >= courier.courier_type.value:
+            break
+
+        if try_assign_order(courier_working_time, prepare_list_of_intervals(e[3])):
+            # Если с новым товаром он сможет утащить
+            if summary_weight + e[1] <= courier.courier_type.value:
+                summary_weight += e[1] # добавляем вес
+                orders_ids.append(e[0]) # сохраняем id заказа, который решили назначить
+            else:
+                break
+
+    if len(orders_ids) == 0:
+        complete_delivery(courier.courier_id, orders_list[0][0])
+
+    cursor.execute(
+        f'delete from assignments where courier_id = %s and not order_id = any(%s);',
+        [courier.courier_id, orders_ids]
+    )
+    cursor.close()
+
+    
 
 # Проверить, закончил ли курьер развоз
 def is_delivery_finished(courier_id):
@@ -126,6 +166,8 @@ def is_delivery_finished(courier_id):
         [courier_id]
     )
     result = cursor.fetchall()[0][0]
+    cursor.close()
+
     if result == 0:
         return True
     else:
@@ -140,19 +182,35 @@ def select_not_finished_assignments(courier_id):
         [courier_id]
     )
     result = cursor.fetchall()
+    cursor.close()
     return result
 
 
 # Назначить заказы курьеру
 def assign_orders(courier_id, order_ids, assign_time):
+    # Если нечего назначить, то и ничего не назначаем
+    if len(order_ids) == 0:
+        return
+
     cursor = db_connection.cursor()
+
+    courier = select_courier_by_id(courier_id)
+    salary_coefficient = None
+
+    # Рассчитываем кэффициент запрплаты для типа курьера
+    if courier.courier_type == CourierType.foot:
+        salary_coefficient = 2
+    elif courier.courier_type == CourierType.bike:
+        salary_coefficient = 5
+    else:
+        salary_coefficient = 9
+
     # Создам новый развоз
     cursor.execute(
-        f'insert into deliveries (assign_time, completed) values (%s, false) returning deliveries.delivery_id;',
-        [assign_time]
+        f'insert into deliveries (assign_time, completed, salary_coefficient)values (%s, false, %s) returning deliveries.delivery_id;',
+        [assign_time, salary_coefficient]
     )
     delivery_id = cursor.fetchall()[0][0]
-    print(delivery_id)
 
     # Добавим заказы
     values = [(courier_id, id, delivery_id) for id in order_ids]
@@ -160,16 +218,34 @@ def assign_orders(courier_id, order_ids, assign_time):
         f'insert into assignments (courier_id, order_id, delivery_id) values { ", ".join(["%s"] * len(values)) };',
         values
     )
+    cursor.close()
 
 
-# Проверить назначен ли заказ курьеру, и не выполнен ли он (можно ли его выполнить)
+# Проверить назначен ли заказ курьеру
 def is_order_assigned_for_courier(courier_id, order_id):
+    cursor = db_connection.cursor()
+    cursor.execute(
+        f'select count(*) from assignments where courier_id = %s and order_id = %s;',
+        [courier_id, order_id]
+    )
+    result = cursor.fetchall()[0][0]
+    cursor.close()
+    if result == 0:
+        return False
+    else:
+        return True
+
+
+# Проверить выполнен ли заказ
+def is_order_completed(courier_id, order_id):
     cursor = db_connection.cursor()
     cursor.execute(
         f'select count(*) from assignments where courier_id = %s and order_id = %s and completed = false;',
         [courier_id, order_id]
     )
     result = cursor.fetchall()[0][0]
+    cursor.close()
+
     if result == 0:
         return False
     else:
@@ -181,15 +257,17 @@ def complete_order(courier_id, order_id, complete_time):
     cursor = db_connection.cursor()
     cursor.execute(
         f'''update assignments set completed = true, complete_time = %s, wasted_seconds = extract(epoch from %s) -  extract(epoch from coalesce( 
-            (select max(complete_time) from assignments where order_id = %s),
+            (select max(complete_time) from assignments
+                join deliveries on assignments.delivery_id = (select delivery_id from assignments where courier_id = 1 and order_id = 5)),
             (select assign_time from deliveries
                 join assignments on assignments.delivery_id = deliveries.delivery_id
                 where assignments.order_id = %s and assignments.courier_id = %s limit 1
             )
         ))
         where courier_id = %s and order_id = %s and completed = false;''',
-        [complete_time, complete_time, order_id, order_id, courier_id, courier_id, order_id]
+        [complete_time, complete_time, courier_id, order_id, courier_id, courier_id, order_id]
     )
+    cursor.close()
 
 
 # Выполнил ли все заказы курьер
@@ -200,6 +278,7 @@ def is_completed_all_assignments(courier_id):
         [courier_id]
     )
     result = cursor.fetchall()[0][0]
+    cursor.close()
 
     if result == 0:
         return True
@@ -219,6 +298,54 @@ def complete_delivery(courier_id, order_id):
         ''',
         [courier_id, order_id]
     )
+    cursor.close()
+
+
+# Посчитать заработную плату курьера
+def calcuate_courier_sallary(courier_id):
+    cursor = db_connection.cursor()
+    cursor.execute(
+        f'''
+            select sum(salary_coefficient)
+            from (select deliveries.salary_coefficient, deliveries.delivery_id from deliveries
+                join assignments on deliveries.delivery_id = assignments.delivery_id
+                where assignments.courier_id = %s and deliveries.completed = true group by deliveries.delivery_id) coeffi;
+        ''',
+        [courier_id]
+    )
+    result = cursor.fetchall()[0][0]
+    cursor.close()
+
+    if result == None:
+        return 0
+    else:
+        return result * 500
+
+
+# Рассчитать рейтинг для курьера, возвращает None, если курьер не выполнил ни одного заказа
+def get_courier_rating(courier_id):
+    cursor = db_connection.cursor()
+    cursor.execute(
+    f'''
+        select min(avg) from
+            (select avg(assignments.wasted_seconds), orders.region
+                from assignments
+                join orders on orders.order_id = assignments.order_id
+            where assignments.courier_id = %s and assignments.completed = true group by orders.region)
+        avg_regions;
+    ''',
+    [courier_id]
+    )
+    result = cursor.fetchall()[0][0]
+    cursor.close()
+    
+    if result == None:
+        return None
+
+    # Посчитаю рейтинг и округлю до 2-х чисел после запятой
+    rating = (60 * 60 - min(result, 60*60)) / (60*60) * 5
+    rating = round(rating, 2)
+    return rating
 
 
 # Перебирает список интервалов и разбивает интервалы, если они проходят через 00:00 на интервалы [x; 23:59] и [00:00; y]
@@ -230,7 +357,7 @@ def prepare_list_of_intervals(list_of_tuples):
             list_of_tuples.append((0, e[1]))
             # Поскольку есть гарантия, что интервалы непересекающиеся, то дальше искать нет смысла
             break
-    list_of_tuples.sort()
+    list_of_tuples.sort(key=lambda x: int(x[0]))
     return list_of_tuples
 
 
@@ -253,14 +380,14 @@ def try_assign_order(courier_times, delivery_times):
         if i == len(courier_times):
             break
 
-        # Если начало работы курьера позже доставки
-        if delivery_times[j][1] < courier_times[i][0]:
+        # Если начало работы курьера позже или равно времени конца доставки
+        if delivery_times[j][1] <= courier_times[i][0]:
             j += 1
             continue
         # Если курьер работает в то время, когда можно осуществить доставку
         if delivery_times[j][0] < courier_times[i][1]:
             return True
-        j += 1
+        i += 1
     return False
 
 
@@ -279,6 +406,7 @@ def select_orders_for_courier(courier_id):
         [courier.courier_type.value, courier_id]
     )
     orders_list = cursor.fetchall()
+    cursor.close()
 
     courier_working_time = prepare_list_of_intervals( [(e.start_time, e.end_time) for e in courier.working_hours] )
 
@@ -302,12 +430,7 @@ def select_orders_for_courier(courier_id):
 # Тут будут исключения
 db_connection = create_db_connection('candy_shop', 'candy_admin', '1', 'localhost')
 db_connection.autocommit = True
-init_database()
+init_database(False)
 
-'''
-print(is_delivery_finished(1))
-print(is_order_assigned_for_courier(1, 5))
-print(is_completed_all_assignments(1))
 
-complete_delivery(1, 6)
-'''
+#print(calcuate_courier_sallary(5))

@@ -8,7 +8,6 @@ class CourierType(enum.Enum):
     car = 50
 
 
-
 class TimeInterval():
     def __init__(self, start_hour, start_minute, end_hour, end_minute):
         if end_hour < 0 or end_hour > 23 or start_hour < 0 or start_hour > 23:
@@ -42,6 +41,7 @@ class Courier():
         self.courier_type = t
         self.regions = regions
         self.working_hours = hours
+        self.working_hours.sort()
 
     def to_dict(self):
         if self.courier_type == None:
@@ -74,6 +74,8 @@ class Order:
         self.weight = weight
         self.region = region
         self.delivery_hours = hours
+        self.delivery_hours.sort()
+
 
     def to_dict(self):
         return {
