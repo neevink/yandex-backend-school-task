@@ -148,6 +148,8 @@ def update_courier(courier):
                 break
 
     delivery_id = get_not_finished_delivery(courier.courier_id)
+    if delivery_id is None:
+        return
 
     if len(orders_ids) == 0:
         if is_completed_any_assignment(delivery_id):
@@ -173,8 +175,10 @@ def get_not_finished_delivery(courier_id):
         ''',
         [courier_id]
     )
-    delivery_id = cursor.fetchall()[0][0]
-    return delivery_id
+    delivery_id = cursor.fetchall()
+    if len(delivery_id) == 0:
+        return None
+    return delivery_id[0][0]
 
 
 # Проверить завершён ли хоть один заказ из развоза. Развоз находится по id курьера и id заказа

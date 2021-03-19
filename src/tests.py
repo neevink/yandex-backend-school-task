@@ -102,6 +102,17 @@ class TestServices(unittest.TestCase):
 
     # Модульный тест на обновление информации о курьере
     def test_updating_courier(self):
+        c0 = Courier(0, CourierType.car, [5], [])
+        services.add_couriers([c0])
+        c0.courier_type = CourierType.foot
+        services.update_courier(c0)
+        updated_c0 = services.get_courier_by_id(c0.courier_id)
+        self.assertEqual(c0.courier_id, updated_c0.courier_id)
+        self.assertEqual(c0.courier_type, updated_c0.courier_type)
+        self.assertEqual(c0.regions, updated_c0.regions)
+        self.assertEqual(c0.working_hours, updated_c0.working_hours)
+
+
         c1 = Courier(1, CourierType.bike, [1, 2], [TimeInterval(9, 0, 12, 0), TimeInterval(14, 0, 17, 0)])
         services.add_couriers([c1])
 
