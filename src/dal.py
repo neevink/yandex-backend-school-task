@@ -396,7 +396,7 @@ def get_courier_rating(courier_id):
 
     # Посчитаю рейтинг и округлю до 2-х чисел после запятой
     rating = (60 * 60 - min(result, 60*60)) / (60*60) * 5
-    rating = round(rating, 2)
+    rating = float(round(rating, 2))
     return rating
 
 

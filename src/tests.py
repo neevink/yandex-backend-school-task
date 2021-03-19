@@ -4,6 +4,7 @@ import dal
 from models import Courier, CourierType, TimeInterval, Order
 
 from datetime import datetime, timedelta
+from decimal import Decimal
 
 class TestServices(unittest.TestCase):
     def setUp(self):
@@ -191,8 +192,8 @@ class TestServices(unittest.TestCase):
         self.assertEqual(ids, [])
 
 
-    # Модульный тест на выполнение заказа 
-    def test_calculating_sallary(self):
+    # Модульный тест на подсчёт зарплаты и рейтинга
+    def test_calculating_sallary_and_rating(self):
         c1 = Courier(1, CourierType.foot, [1, 2], [TimeInterval(9, 0, 12, 0), TimeInterval(14, 0, 17, 0)])
         c2 = Courier(2, CourierType.bike, [2, 3], [TimeInterval(10, 0, 16, 0)])
         services.add_couriers([c1, c2])
@@ -202,7 +203,8 @@ class TestServices(unittest.TestCase):
         o3 = Order(3, 5.44, 2, [TimeInterval(10, 0, 12, 0), TimeInterval(21, 0, 3, 40), TimeInterval(6, 0, 8, 0)])
         o4 = Order(4, 3.33, 3, [TimeInterval(6, 0, 7, 0), TimeInterval(10, 0, 11, 0), TimeInterval(12, 0, 13, 0)])
         o5 = Order(5, 1.5, 1, [TimeInterval(6, 10, 7, 40), TimeInterval(23, 0, 2, 0)])
-        services.add_orders([o1, o2, o3, o4, o5])
+        o6 = Order(6, 29, 1, [TimeInterval(15, 0, 1, 0)])
+        services.add_orders([o1, o2, o3, o4, o5, o6])
 
         assign1_result = services.assign_orders(c1.courier_id) # 1
         assign2_result = services.assign_orders(c2.courier_id) # 3, 4
@@ -210,17 +212,41 @@ class TestServices(unittest.TestCase):
         # Нет развозов = нет зарплаты
         self.assertEqual(services.calcuate_courier_sallary(c1.courier_id), 0)
 
-        time = datetime.now().replace(microsecond = 0) + timedelta(0, 60 * 15) # 15 минут
+        time = datetime.now().replace(microsecond = 0) + timedelta(0, 60 * 120) # 2 часа
         services.complete_order(c1.courier_id, 1, time)
         c1.courier_type = CourierType.car
+        c1.working_hours = [TimeInterval(6, 0, 23, 0)]
         services.update_courier(c1)
         assign3_result = services.assign_orders(c1.courier_id) # 5, 6
 
         # 1 пеший развоз = 2 * 500
         self.assertEqual(services.calcuate_courier_sallary(c1.courier_id), 2 * 500)
+        # Слишком долго вёз => рейтинг 0
+        self.assertEqual(services.calculate_courier_rating(c1.courier_id), 0)
 
-        time = datetime.now().replace(microsecond = 0) + timedelta(0, 60 * 23) # 23 минуты
+        time = datetime.now().replace(microsecond = 0) + timedelta(0, 60 * 27) # 27 минуты
         services.complete_order(c2.courier_id, 3, time)
+        # 23 минуты = рейтинг 3.08
+        self.assertEqual(services.calculate_courier_rating(c2.courier_id), 2.75)
+
+        time = datetime.now().replace(microsecond = 0) + timedelta(0, 60 * 55) # 55 минут
+        services.complete_order(c2.courier_id, 4, time)
+
+        # 2 вело-развоз = 5 * 500
+        self.assertEqual(services.calcuate_courier_sallary(c2.courier_id), 5 * 500)
+        # 55 - 27 = 28 минут
+        self.assertEqual(services.calculate_courier_rating(c2.courier_id), 2.75)
+
+        time = datetime.now().replace(microsecond = 0) + timedelta(0, 60 * 15) # 15 минут
+        services.complete_order(c1.courier_id, 6, time)
+        time = datetime.now().replace(microsecond = 0) + timedelta(0, 60 * 35) # 35 минут
+        services.complete_order(c1.courier_id, 5, time)
+
+        # 3 развоз на машине + пеший развоз = 9 * 500 + 2 * 500
+        self.assertEqual(services.calcuate_courier_sallary(c1.courier_id), 11 * 500)
+
+        # 50 / 2 = 25 минут
+        self.assertEqual(services.calculate_courier_rating(c1.courier_id), 3.54)
 
 
 class TestDAL(unittest.TestCase):
