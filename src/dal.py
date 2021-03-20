@@ -400,6 +400,36 @@ def get_courier_rating(courier_id):
     return rating
 
 
+def is_couriers_contains_ids(list_of_courier_ids):
+    cursor = db_connection.cursor()
+    cursor.execute(
+        f'select count(*) from couriers where courier_id = any(%s);',
+        [list_of_courier_ids]
+    )
+    result = cursor.fetchall()[0][0]
+    cursor.close()
+
+    if result == 0:
+        return False
+    else:
+        return True
+
+
+def is_orders_contains_ids(list_of_order_ids):
+    cursor = db_connection.cursor()
+    cursor.execute(
+        f'select count(*) from orders where order_id = any(%s);',
+        [list_of_order_ids]
+    )
+    result = cursor.fetchall()[0][0]
+    cursor.close()
+
+    if result == 0:
+        return False
+    else:
+        return True
+
+
 # Перебирает список интервалов и разбивает интервалы, если они проходят через 00:00 на интервалы [x; 23:59] и [00:00; y]
 def prepare_list_of_intervals(list_of_tuples):
     for e in list_of_tuples:

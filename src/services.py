@@ -46,6 +46,14 @@ def update_courier(courier):
         raise Exception('Произошла ошибка: ' + str(e))
 
 
+def is_couriers_contains_ids(list_of_courier_ids):
+    return dal.is_couriers_contains_ids(list_of_courier_ids)
+
+
+def is_orders_contains_ids(list_of_order_ids):
+    return dal.is_orders_contains_ids(list_of_order_ids)
+
+
 def assign_orders(courier_id):
     # Проверить, есть ли незаконченный развоз
     if not dal.is_delivery_finished(courier_id):
@@ -71,7 +79,7 @@ def assign_orders(courier_id):
 # Отметить заказ, как выполненный
 def complete_order(courier_id, order_id, complete_time):
     if not dal.is_order_assigned_for_courier(courier_id,order_id):
-        raise Exception('Заказ не найден или не назначен этому курьеру')
+        raise Exception('Заказ или курьер не найден или заказ не назначен этому курьеру')
 
     # Если заказ уже выполнен, то перезаписывать время выполнения не нужно
     if not dal.is_order_completed(courier_id, order_id):

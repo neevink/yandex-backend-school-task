@@ -10,7 +10,7 @@ def validate_long_time(element):
 
     t = None
     try:
-        t = datetime.strptime('2021-01-10T09:32:14.42Z', '%Y-%m-%dT%H:%M:%S.%fZ')
+        t = datetime.strptime(element, '%Y-%m-%dT%H:%M:%S.%fZ')
     except:
         raise ValidationException('Cтрока имеет некорректный формат, пример формата: 2021-01-10T09:32:14.42Z')
     return t

@@ -34,10 +34,14 @@ def import_couriers():
             not_success_ids.append(e['courier_id'])
             
     if len(not_success_ids) == 0:
+        # Если хотя бы один курьер уже содержится в бд, то бракуем весь набор
+        if services.is_couriers_contains_ids(success_ids):
+            return bad_request_with_message_code('Один из курьеров с таким id уже существет в базе данных.')
+        
         try:
             services.add_couriers(new_couriers)
         except:
-            return bad_request_with_message_code('Один из курьеров с таким id уже существет в базе данных')
+            return bad_request_with_message_code('Во время выполнения, произошла неожаданная ошибка')
         return created_code(generate_json({"couriers": [{"id":x} for x in success_ids]}))
     else:
         return bad_request_code(generate_json({"validation_error":{"couriers": [{"id":x} for x in not_success_ids]}}))
@@ -55,11 +59,7 @@ def update_courier_by_id(courier_id):
     try:
         courier = services.get_courier_by_id(courier_id)
     except:
-        return bad_request_with_message_code('Курьера с там id не существует')
-
-    # Если передан id курьера, который не существует, то вернуть 404
-    if courier is None:
-        return not_found_code()
+        return not_found_code() # Если передан id курьера, который не существует, то вернуть 404
 
     # Поля которые могут присутствовать в этом запросе
     accepted_fields = ['courier_type', 'regions', 'working_hours']
@@ -120,10 +120,14 @@ def import_orders():
             not_success_ids.append(e['order_id'])
     
     if len(not_success_ids) == 0:
+        # Если хотя бы один заказ уже содержится в бд, то бракуем весь набор
+        if services.is_orders_contains_ids(success_ids):
+            return bad_request_with_message_code('Один из заказов с таким id уже существет в базе данных.')
+
         try:
             services.add_orders(new_orders)
         except:
-            return bad_request_with_message_code('Один из заказов с таким id уже существет в базе данных')
+            return bad_request_with_message_code('Во время выполнения, произошла неожаданная ошибка')
         return created_code(json.dumps({"orders": [{"id":x} for x in success_ids]}))
     else:
         return bad_request_code(json.dumps({"validation_error":{"orders": [{"id":x} for x in not_success_ids]}}))
@@ -145,15 +149,16 @@ def assign_orders():
 
     try:
         result = services.assign_orders(id)
-        order_ids = result[0]
-        assign_time = result[1].isoformat()[:-4] + 'Z'
+        if type(result) is tuple:
+            order_ids = result[0]
+            assign_time = result[1].isoformat()[:-4] + 'Z'
+            return ok_code(json.dumps({"orders": [{"id": x} for x in order_ids], "assign_time": assign_time}))
+        else:
+            return ok_code(json.dumps({"orders": [{"id": x} for x in result]}))
     except:
         return bad_request_with_message_code('Во время выполнения запроса произошла ошибка, скорее всего передан несуществующий id курьера')
 
-    if len(order_ids) == 0:
-        return ok_code(json.dumps({"orders": []}))
-    else:
-        return ok_code(json.dumps({"orders": [{"id": x} for x in order_ids], "assign_time": assign_time}))
+    return ok_code(json.dumps({"orders": [{"id": x} for x in order_ids], "assign_time": assign_time}))
 
 
 # 5
@@ -180,8 +185,10 @@ def complete_order():
     except Exception as e:
         return bad_request_with_message_code('Неверное поле complete_time: ' + str(e))
 
-    # Тут метод который там ты понял
-
+    try:
+        services.complete_order(courier_id, order_id, complete_time)
+    except Exception as e:
+        return bad_request_with_message_code(str(e))
     
     return ok_code(json.dumps({"order_id": order_id}))
 
