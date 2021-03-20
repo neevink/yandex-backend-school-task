@@ -34,7 +34,7 @@ def validate_time(element):
 
 def validate_time_list(time_intervals):
     if type(time_intervals) != list:
-        raise ValidationException("Переданный аргумент имеет неверный тип, ожидается список строк")
+        raise ValidationException("Переданный аргумент имеет неверный тип, ожидается массив строк")
 
     try:
         h = list(map(lambda x: validate_time(x), time_intervals))
@@ -45,18 +45,21 @@ def validate_time_list(time_intervals):
 
 def validate_regions(regions):
     if type(regions) != list:
-        raise ValidationException("Переданный аргумент имеет неверный тип, ожидается список целых чисел")
+        raise ValidationException("Переданный аргумент имеет неверный тип, ожидается массив целых чисел")
 
     try:
-        r = list(map(lambda x: validate_int(x), regions))
+        r = list(map(lambda x: validate_id(x), regions))
     except Exception as e:
         raise ValidationException('Недопустимый элемент массива: ' + str(e))
     return r
 
 
-def validate_int(element):
+def validate_id(element):
     if type(element) == int:
-        return element
+        if element > 0:
+            return element
+        else:
+            raise ValidationException("Переданный аргумент должен быть положительным числом (больше нуля)")
     else:
         raise ValidationException("Переданный аргумент имеет неверный тип, ожидается целое число")
 
@@ -82,18 +85,33 @@ def validate_weight(weight):
 
 
 def validate_courier(courier_dict):
-    id = validate_int(courier_dict.get('courier_id'))
-    t = validate_type(courier_dict.get('courier_type'))
-    regions = validate_regions(courier_dict.get('regions'))
-    hours = validate_time_list(courier_dict.get('working_hours'))
+    try:
+        id = validate_id(courier_dict.get('courier_id'))
+    except Exception as e:
+        raise ValidationException('Поле courier_id - ' + str(e))
+
+    try:
+        t = validate_type(courier_dict.get('courier_type'))
+    except Exception as e:
+        raise ValidationException('Поле courier_type - ' + str(e))
+    
+    try:
+        regions = validate_regions(courier_dict.get('regions'))
+    except Exception as e:
+        raise ValidationException('Поле regions - ' + str(e))
+
+    try:
+        hours = validate_time_list(courier_dict.get('working_hours'))
+    except Exception as e:
+        raise ValidationException('Поле working_hours - ' + str(e))
     
     return Courier(id, t, regions, hours)
 
 
 def validate_order(order_dict):
-    id = validate_int(order_dict.get('order_id'))
+    id = validate_id(order_dict.get('order_id'))
     w = validate_weight(order_dict.get('weight'))
-    reg = validate_int(order_dict.get('region'))
+    reg = validate_id(order_dict.get('region'))
     hours = validate_time_list(order_dict.get('delivery_hours'))
 
     return Order(id, w, reg, hours)

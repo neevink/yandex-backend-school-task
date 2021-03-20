@@ -76,7 +76,6 @@ class Order:
         self.delivery_hours = hours
         self.delivery_hours.sort()
 
-
     def to_dict(self):
         return {
             "order_id": self.order_id,
@@ -85,7 +84,6 @@ class Order:
             "delivery_hours": [str(e) for e in self.delivery_hours]
         }
 
-    
     def to_db_entity(self):
         return (
             self.order_id,

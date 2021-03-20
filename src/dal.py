@@ -15,7 +15,7 @@ def create_db_connection(db_name, db_user, db_password, db_host):
         )
         print("Подключение к базе данных прошло успешно.")
     except OperationalError as e:
-        print(f'Произошла ошибка подключения: ' + e)
+        print(f'Произошла ошибка подключения: ' + str(e))
     return connection
 
 
@@ -245,8 +245,6 @@ def assign_orders(courier_id, order_ids, assign_time):
     if len(order_ids) == 0:
         return
 
-    cursor = db_connection.cursor()
-
     courier = select_courier_by_id(courier_id)
     salary_coefficient = None
 
@@ -257,7 +255,8 @@ def assign_orders(courier_id, order_ids, assign_time):
         salary_coefficient = 5
     else:
         salary_coefficient = 9
-
+        
+    cursor = db_connection.cursor()
     # Создам новый развоз
     cursor.execute(
         f'insert into deliveries (assign_time, completed, salary_coefficient)values (%s, false, %s) returning deliveries.delivery_id;',
@@ -400,11 +399,12 @@ def get_courier_rating(courier_id):
     return rating
 
 
-def is_couriers_contains_ids(list_of_courier_ids):
+# Проверить не содержатся ли переданные id курьеров в базе данных
+def is_couriers_contains_id(courier_id):
     cursor = db_connection.cursor()
     cursor.execute(
-        f'select count(*) from couriers where courier_id = any(%s);',
-        [list_of_courier_ids]
+        f'select count(*) from couriers where courier_id = %s;',
+        [courier_id]
     )
     result = cursor.fetchall()[0][0]
     cursor.close()
@@ -415,11 +415,12 @@ def is_couriers_contains_ids(list_of_courier_ids):
         return True
 
 
-def is_orders_contains_ids(list_of_order_ids):
+# Проверить не содержатся ли переданные id заказов в базе данных
+def is_orders_contains_id(order_id):
     cursor = db_connection.cursor()
     cursor.execute(
-        f'select count(*) from orders where order_id = any(%s);',
-        [list_of_order_ids]
+        f'select count(*) from orders where order_id = %s;',
+        [order_id]
     )
     result = cursor.fetchall()[0][0]
     cursor.close()
@@ -441,14 +442,6 @@ def prepare_list_of_intervals(list_of_tuples):
             break
     list_of_tuples.sort(key=lambda x: int(x[0]))
     return list_of_tuples
-
-
-# Согласно имеющейся у меня информации, заказ назначить можно, если выполняются условя:
-# 0) Заказ не назначен другому курьеру
-# 1) курьер работает в этом регионе
-# 2) вес заказа меньше или равен грузоподъёмности
-# 3) есть хотя бы одно ненуливое прересечение интервалов времени доставки заказа и интервалов времени работы курьера
-# 4) суммарный вес заказов, выдаваемых курьеру за раз должен быть меньше или равен грузоподъёмности
 
 
 # Может ли курьер выполнить заказ, временные промежутки должны быть отсортированы,
@@ -513,6 +506,3 @@ def select_orders_for_courier(courier_id):
 db_connection = create_db_connection('candy_shop', 'candy_admin', '1', 'localhost')
 db_connection.autocommit = True
 init_database(False)
-
-
-#print(calcuate_courier_sallary(5))
