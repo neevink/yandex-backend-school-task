@@ -66,13 +66,14 @@ def assign_orders(courier_id):
 
     orders_ids = dal.select_orders_for_courier(courier_id)
     if len(orders_ids) == 0:
-        return ([]) # Вернуть пустой список, время возвращать не нужно
+        return ([])  # Вернуть пустой список, время возвращать не нужно
 
     orders_ids.sort()
 
     # Округлим миллисикунды до 2х цифр для текущего времени
     assign_time = datetime.now()
-    assign_time = assign_time.replace(microsecond = assign_time.microsecond // 10000 * 10000)
+    ms = assign_time.microsecond // 10000 * 10000
+    assign_time = assign_time.replace(microsecond=ms)
 
     dal.assign_orders(courier_id, orders_ids, assign_time)
 
@@ -81,14 +82,15 @@ def assign_orders(courier_id):
 
 # Отметить заказ, как выполненный
 def complete_order(courier_id, order_id, complete_time):
-    if not dal.is_order_assigned_for_courier(courier_id,order_id):
-        raise Exception('Заказ или курьер не найден или заказ не назначен этому курьеру')
+    if not dal.is_order_assigned_for_courier(courier_id, order_id):
+        raise Exception(
+            'Заказ или курьер не найден или заказ не назначен этому курьеру')
 
     # Если заказ уже выполнен, то перезаписывать время выполнения не нужно
     if not dal.is_order_completed(courier_id, order_id):
         return order_id
-    
-    dal.complete_order(courier_id,order_id, complete_time)
+
+    dal.complete_order(courier_id, order_id, complete_time)
 
     # Если все заказы выполнены, то отмечаем выполненым развоз
     if dal.is_completed_all_assignments(courier_id):

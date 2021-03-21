@@ -11,10 +11,13 @@ class CourierType(enum.Enum):
 class TimeInterval():
     def __init__(self, start_hour, start_minute, end_hour, end_minute):
         if end_hour < 0 or end_hour > 23 or start_hour < 0 or start_hour > 23:
-            raise IllegalArgumentError("Количество часов должно быть в интервале от [0; 23]")
+            raise IllegalArgumentError(
+                "Количество часов должно быть в интервале от [0; 23]")
 
-        if start_minute < 0 or start_minute > 59 or end_minute < 0 or end_minute > 59:
-            raise IllegalArgumentError("Количество часов должно быть в интервале от [0; 59]")
+        if start_minute < 0 or start_minute > 59 or \
+                end_minute < 0 or end_minute > 59:
+            raise IllegalArgumentError(
+                "Количество часов должно быть в интервале от [0; 59]")
 
         self.start_time = start_hour * 60 + start_minute
         self.end_time = end_hour * 60 + end_minute
@@ -24,15 +27,20 @@ class TimeInterval():
             return self.end_time < other.end_time
         else:
             return self.start_time < other.start_time
-    
+
     def __eq__(self, other):
-        return self.start_time == other.start_time and self.end_time == other.end_time
+        return self.start_time == other.start_time and \
+            self.end_time == other.end_time
 
     def __repr__(self):
         return self.__str__()
-        
+
     def __str__(self):
-        return "{:0>2}:{:0>2}-{:0>2}:{:0>2}".format(self.start_time // 60, self.start_time % 60, self.end_time // 60, self.end_time % 60)
+        return "{:0>2}:{:0>2}-{:0>2}:{:0>2}".format(
+            self.start_time // 60,
+            self.start_time % 60,
+            self.end_time // 60,
+            self.end_time % 60)
 
 
 class Courier():
@@ -44,7 +52,7 @@ class Courier():
         self.working_hours.sort()
 
     def to_dict(self):
-        if self.courier_type == None:
+        if self.courier_type is None:
             tname = None
         else:
             tname = self.courier_type.name
@@ -65,7 +73,11 @@ class Courier():
         )
 
     def __str__(self):
-        return "({0}, {1}, {2}, {3})".format(self.courier_id, self.courier_type, self.regions, self.working_hours)
+        return "({0}, {1}, {2}, {3})".format(
+            self.courier_id,
+            self.courier_type,
+            self.regions,
+            self.working_hours)
 
 
 class Order:
@@ -93,4 +105,8 @@ class Order:
         )
 
     def __str__(self):
-        return "({0}, {1}, {2}, {3})".format(self.order_id, self.weight, self.region, self.delivery_hours)
+        return "({0}, {1}, {2}, {3})".format(
+            self.order_id,
+            self.weight,
+            self.region,
+            self.delivery_hours)
