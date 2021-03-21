@@ -1,0 +1,86 @@
+1) Insert new couriers:
+curl -X POST -H "Content-Type: application/json" -d '
+{
+  "data": [
+    {
+      "courier_id": 1,
+      "courier_type": "foot",
+      "regions": [1, 12, 22],
+      "working_hours": ["11:35-14:05", "09:00-11:00"]
+    },
+    {
+      "courier_id": 2,
+      "courier_type": "bike",
+      "regions": [
+        22
+      ],
+      "working_hours": ["09:00-18:00"]
+    },
+    {
+      "courier_id": 3,
+      "courier_type": "car",
+      "regions": [12, 22, 23, 33],
+      "working_hours": []
+    }
+  ]
+}' http://127.0.0.1:8080/couriers -i
+
+
+2) Update courier:
+curl -X PATCH -H "Content-Type: application/json" -d '
+{
+    "regions": [11, 33, 2]
+}' http://127.0.0.1:8080/couriers/2 -i
+
+
+3) Insert order:
+curl -X POST -H "Content-Type: application/json" -d '
+{
+  "data": [
+    {
+      "order_id": 1,
+      "weight": 0.23,
+      "region": 12,
+      "delivery_hours": [
+        "09:00-18:00"
+      ]
+    },
+    {
+      "order_id": 2,
+      "weight": 15,
+      "region": 1,
+      "delivery_hours": [
+        "09:00-18:00"
+      ]
+    },
+    {
+      "order_id": 3,
+      "weight": 0.01,
+      "region": 22,
+      "delivery_hours": [
+        "09:00-12:00",
+        "16:00-21:30"
+      ]
+    }
+  ]
+}' http://127.0.0.1:8080/orders -i
+
+
+4) Assign order:
+curl -X POST -H "Content-Type: application/json" -d '
+{
+  "courier_id": 1
+}' http://127.0.0.1:8080/orders/assign -i
+
+
+5) Complete order:
+curl -X POST -H "Content-Type: application/json" -d '
+{
+  "courier_id": 1,
+  "order_id": 1,
+  "complete_time": "2021-03-21T18:33:38.69Z"
+}' http://127.0.0.1:8080/orders/complete -i
+
+
+6) Get courier info:
+curl -X GET http://127.0.0.1:8080/couriers/1 -i

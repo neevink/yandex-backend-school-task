@@ -39,9 +39,36 @@ GRANT ALL PRIVILEGES ON DATABASE candy_shop TO candy_admin;
 
 
 ## Деплой сервиса в продакшен
-По умолчанию сервис запускается на `0.0.0.0:8080`. Настоятельно рекомендую использовать http-сервер `Gunicorn`, он сразу есть в зависимостях, ничего писать не нужно. Для запуска сервера перейдите в корень проекта и запустите скрипт:
+Настоятельно рекомендую использовать http-сервер `Gunicorn`, для его установки введите в консоль:
+```sh
+sudo apt-get install gunicorn
+```
+
+По умолчанию сервис запускается на `http://0.0.0.0:8080`. Для запуска сервера перейдите в корень проекта и запустите скрипт:
 ```sh
 ./run_server.bash
+```
+
+Можно сделать автозапуск сервиса, при старте машины. Для этого нужно воспользоваться утилитой `Supervisor`:
+```sh
+sudo apt install supervisor
+```
+
+`Supervisor` использует файлы конфигурации, которые должны храниться в директории в `/etc/supervisor/conf.d`. Пример такого файла с именем `api.conf`:
+```yaml
+[program:api]
+command=gunicorn -b 0.0.0.0:8080 -w 5 api:app
+directory=/home/entrant/yandex-backend-school-task/src
+user=entrant
+autostart=true
+autorestart=true
+stopasgroup=true
+killasgroup=true
+```
+
+Как только вы создали этот файл, стоит перезапустить службу супервизора для импорта нового файла конфигурации:
+```sh
+sudo supervisorctl reload
 ```
 
 

@@ -211,12 +211,12 @@ def import_orders():
                 'cкорее всего в запросе дублируются '
                 'order_id (по ТЗ такого быть не должно)')
 
-        ans = generate_json({'couriers': [{'id': x} for x in success_ids]})
+        ans = generate_json({'orders': [{'id': x} for x in success_ids]})
         return created_code(ans)
     else:
         ans = generate_json({
             'validation_error': {
-                'couriers': [{'id': x} for x in not_success_ids],
+                'orders': [{'id': x} for x in not_success_ids],
                 'first_error_message': first_validation_message
                 }
             })
@@ -343,6 +343,11 @@ def not_found_code(data=''):
 @app.errorhandler(404)
 def not_found(error):
     return '', 404, {'Content-Type': 'application/json; charset=utf-8'}
+
+
+@app.errorhandler(400)
+def not_found(error):
+    return '', 400, {'Content-Type': 'application/json; charset=utf-8'}
 
 
 if __name__ == '__main__':
