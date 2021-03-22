@@ -62,7 +62,12 @@ def assign_orders(courier_id):
     if not dal.is_delivery_finished(courier_id):
         # Возвращаем список неразвезённых заказов
         not_finished_ids = dal.select_not_finished_assignments(courier_id)
-        return [e[0] for e in not_finished_ids]
+
+        # Также нужно вернуть время начала незаконченного развоза
+        delivery_id = dal.get_not_finished_delivery(courier_id)
+        assign_time = dal.get_assign_time(delivery_id)
+
+        return ([e[0] for e in not_finished_ids], assign_time)
 
     orders_ids = dal.select_orders_for_courier(courier_id)
     if len(orders_ids) == 0:

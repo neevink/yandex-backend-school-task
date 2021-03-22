@@ -211,6 +211,19 @@ def get_not_finished_delivery(courier_id):
     return delivery_id[0][0]
 
 
+def get_assign_time(delivery_id):
+    cursor = db_connection.cursor()
+    cursor.execute(
+        '''
+        select assign_time from deliveries
+        where delivery_id = %s limit 1;
+        ''',
+        [delivery_id]
+    )
+    time = cursor.fetchall()[0][0]
+    return time
+
+
 # Проверить завершён ли хоть один заказ из развоза.
 # Развоз находится по id курьера и id заказа
 def is_completed_any_assignment(delivery_id):

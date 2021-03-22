@@ -106,7 +106,7 @@ class TestServices(unittest.TestCase):
         # Если не закончен текущий развоз, то назначенные заказы сохраняются
         ids1 = services.assign_orders(1)[0]  # [0] - список id, [1] - время
         self.assertEqual(ids1, [1])
-        ids1 = services.assign_orders(1)
+        ids1 = services.assign_orders(1)[0]
         self.assertEqual(ids1, [1])
 
         ids2 = services.assign_orders(2)[0]  # [0] - список id, [1] - время
@@ -162,7 +162,7 @@ class TestServices(unittest.TestCase):
         self.assertEqual(c1.courier_id, c1_updated.courier_id)
         self.assertEqual(c1.courier_type, c1_updated.courier_type)
 
-        ids = services.assign_orders(c1.courier_id)
+        ids = services.assign_orders(c1.courier_id)[0]
         self.assertEqual(ids, [2, 3])  # Должен отмениться заказ #1 из-за веса
 
         # изменяем регион
@@ -174,7 +174,7 @@ class TestServices(unittest.TestCase):
         self.assertEqual(c1.courier_id, c1_updated.courier_id)
         self.assertEqual(c1.regions, c1_updated.regions)
 
-        ids = services.assign_orders(c1.courier_id)
+        ids = services.assign_orders(c1.courier_id)[0]
         self.assertEqual(ids, [2])  # Должен отмениться заказ #3 из-за региона
 
         # изменяем время работы
@@ -219,7 +219,7 @@ class TestServices(unittest.TestCase):
         time = datetime.now().replace(microsecond=0) + timedelta(0, 60*3)
         services.complete_order(c1.courier_id, o1.order_id, time)
 
-        ids = services.assign_orders(c1.courier_id)
+        ids = services.assign_orders(c1.courier_id)[0]
         self.assertEqual(ids, [5])
 
         time = datetime.now().replace(microsecond=0) + timedelta(0, 60*10)
