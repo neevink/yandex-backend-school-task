@@ -38,7 +38,7 @@ GRANT ALL PRIVILEGES ON DATABASE candy_shop TO candy_admin;
 ```
 
 
-## Деплой сервиса в продакшен
+## Деплой сервиса в продакшн
 Настоятельно рекомендую использовать http-сервер `Gunicorn`, для его установки введите в консоль:
 ```sh
 sudo apt-get install gunicorn
